@@ -40,10 +40,9 @@ In soft, cards may use radius up to 16 and controls may be pill-shaped. Every ot
 10. [references/measure.md](references/measure.md) - measuring the existing UI. C
 11. [references/metric-to-visual.md](references/metric-to-visual.md) - which visual fits which metric. A, C
 12. [references/patterns.md](references/patterns.md) - proven dashboard patterns. A, C
-13. [references/before-after/fintrack.md](references/before-after/fintrack.md) - worked redesign example. C
-14. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn; [concept-dashboards](references/examples/concept-dashboards.md). Pick 1-2 closest to the product
-15. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
-16. [checklist.md](checklist.md) - verify before done. All modes
+13. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn. Pick 1-2 closest to the product
+14. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
+15. [checklist.md](checklist.md) - verify before done. All modes
 
 ## Hard rules
 
@@ -83,7 +82,6 @@ Behavior stays identical. Do not redesign layout unless asked.
 
 ## Mode C: REDESIGN (existing dashboard, structure may change)
 
-Full procedure: [references/redesign.md](references/redesign.md). Measure with [references/measure.md](references/measure.md), choose visuals with [references/metric-to-visual.md](references/metric-to-visual.md), borrow layouts from [references/patterns.md](references/patterns.md). Worked example: [references/before-after/fintrack.md](references/before-after/fintrack.md).
 
 Steps (same numbering as redesign.md):
 0. Context: product, users, the 3 decisions the screen supports, data shape.

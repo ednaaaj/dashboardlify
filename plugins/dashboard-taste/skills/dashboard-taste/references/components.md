@@ -189,7 +189,6 @@ Top to bottom inside Card spec (`--card-border`, `--panel-bg` behind in soft):
 | Footer | Divider, then framed user card (`--surface`, 1px `--border`, `--radius-lg`, avatar 32); Help/Settings pinned above it, separate from nav groups |
 
 - Don't: more than 2 nest levels, accent solid bg on active, icon-less mixed with icon items, CAPS micro-labels, grey pill count chips on every row.
-- Worked example: [before-after/sidebar.md](before-after/sidebar.md).
 
 ## Dropdown / Popover / Command menu
 

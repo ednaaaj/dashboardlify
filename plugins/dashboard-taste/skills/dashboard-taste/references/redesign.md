@@ -174,4 +174,3 @@ Findings: P0 n | P1 n | P2 n | P3 n   (A-only n, B-only n, both n)
 
 Then: brief table, Removed or moved table, false-positive labels, JSX change list, needs-data list, tests run, screenshots. Last line: approval question (before Step 6) or "done, N files changed" (after).
 
-Worked example: [before-after/fintrack.md](before-after/fintrack.md).

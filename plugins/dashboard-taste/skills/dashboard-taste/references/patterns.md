@@ -1,6 +1,6 @@
 # Dashboard patterns
 
-Distilled from 13 reviewed dashboards. All numbers ESTIMATED from screenshots. See examples/concept-dashboards.md.
+Common dashboard layout patterns. Numbers are guidance, not measurements.
 
 ## Patterns
 
