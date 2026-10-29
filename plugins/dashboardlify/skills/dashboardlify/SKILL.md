@@ -12,7 +12,7 @@ Numeric, token-driven dashboard design. Every size, color, radius, shadow and du
 | Mode | Use for | Scope |
 |---|---|---|
 | A: BUILD | New dashboard | Whole screen from tokens |
-| B: UNSLOP | Existing dashboard | CSS values only. Safe, no structure change |
+| B: UNSLOP | Existing dashboard | Styling only (CSS, no JSX/behavior change). Whole app by default, changes must be visible |
 | C: REDESIGN | Existing dashboard | Structure, hierarchy, charts, compression. May change JSX. Needs user approval of a brief before any code edit |
 
 Choosing: "unslop / polish / tokens" -> B. "redesign / transform / change the layout / position / make it better" -> C. Unclear -> ask once.
@@ -66,7 +66,20 @@ In soft, cards may use radius up to 16 and controls may be pill-shaped. Every ot
 
 ## Mode B: UNSLOP (existing dashboard)
 
-Behavior stays identical. Do not redesign layout unless asked.
+Behavior stays identical (no JSX, props, routes or data changes). Do not redesign layout unless asked.
+
+Scope: unless the user names one file, the scope is the WHOLE APP: shell (sidebar, topbar, breadcrumb, page wrapper), the home dashboard and every routed page. List all pages and their CSS first, then process all of them. Never stop after one file.
+
+Visible, not cosmetic: snapping 30px to 24px is not enough. A pass must change what the eye sees:
+- type: collapse font sizes to the scale, uppercase body/buttons/tabs/table text to sentence case, weights 400/500/600, page title 20-24/600
+- icons: one size per context (nav 16, buttons 14-16, KPI 16-20), outline weight, no 28px+ solid glyphs in nav; KPI icon wells 32px squares
+- density: topbar 48-56px, nav item 32-36px, table row 40px with nowrap + ellipsis (inside overflow-x containers), card padding 16-20, page padding 24
+- radius, color, shadow, motion: as the hard rules
+Component libraries (MUI/JSS, Bootstrap) override single-class CSS: raise specificity (e.g. `body .MuiButton-root`) in a bridge file instead of adding `!important`.
+
+If the tokens file (or a bridge mapping the app's own variables to the skill tokens) is not imported at the app entry, add it first. Keep dark mode working: map to the app's own variables when it has them.
+
+Finish with a per-file report (before -> after counts: font sizes, radii, hex colors, off-scale spacing, uppercase rules). A file that changed fewer than 5 values needs a reason. List what was NOT covered. If the result would be hard to see, say so and recommend Mode C.
 
 1. Scan. Grep the source, excluding `references/tokens.css`. Allowed exceptions, not violations: `rounded-full` (avatars/pills), font-size 13px (table) and 14px (body) from the type scale, `box-shadow` on overlays only (popover/modal), skeleton shimmer `gradient`/`keyframes`:
    - radius (`rounded-full`/50%/9999px allowed for avatars, pills and, in soft, controls; drop 9999px hits after matching): crisp (flag > 8px) `border-radius:\s*(9|[1-9][0-9]+)(\.[0-9]+)?px`; soft (flag > 16px) `border-radius:\s*(1[7-9]|[2-9][0-9]+)(\.[0-9]+)?px`; Tailwind: crisp flag `rounded-(xl|2xl|3xl)`, soft allow xl (12)/2xl (16), flag `rounded-3xl`
