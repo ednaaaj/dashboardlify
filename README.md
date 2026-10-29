@@ -49,6 +49,16 @@ cp -R dashboardlify/plugins/dashboard-taste/skills/dashboard-taste ~/.claude/ski
 
 For one project only, copy it into `<project>/.claude/skills/` instead.
 
+## Commands
+
+| Command | Mode |
+|---|---|
+| `/dashboard-taste:unslop <path>` | B: CSS-only cleanup |
+| `/dashboard-taste:redesign <path>` | C: measure, audit, brief, wait for approval |
+| `/dashboard-taste:build-dashboard` | A: new dashboard |
+
+Manual installs get the short forms `/unslop`, `/redesign`, `/build-dashboard` by copying `plugins/dashboard-taste/commands/*.md` into `~/.claude/commands/`.
+
 ## How to use
 
 Open Claude Code in your project and ask in plain words. The skill triggers on dashboards, admin panels, analytics views, data tables and settings pages. You can also call it directly with `/dashboard-taste`.
