@@ -1,6 +1,6 @@
 # dashboardlify
 
-**`dashboard-taste`** is an AI skill for Claude Code that builds, cleans up and redesigns admin dashboards so they look designed instead of generated. Every size, color, radius, shadow and duration comes from a fixed token set, so output is consistent and checkable.
+**`dashboardlify`** is an AI skill for Claude Code that builds, cleans up and redesigns admin dashboards so they look designed instead of generated. Every size, color, radius, shadow and duration comes from a fixed token set, so output is consistent and checkable.
 
 Text files only. No binaries, no build step, no dependencies.
 
@@ -35,7 +35,7 @@ Three densities: compact (tables, ops), default (mixed), comfortable (settings).
 
 ```
 /plugin marketplace add ednaaaj/dashboardlify
-/plugin install dashboard-taste@dashboardlify
+/plugin install dashboardlify@dashboardlify
 ```
 
 Update later with `/plugin`.
@@ -44,7 +44,7 @@ Update later with `/plugin`.
 
 ```
 git clone https://github.com/ednaaaj/dashboardlify
-cp -R dashboardlify/plugins/dashboard-taste/skills/dashboard-taste ~/.claude/skills/
+cp -R dashboardlify/plugins/dashboardlify/skills/dashboardlify ~/.claude/skills/
 ```
 
 For one project only, copy it into `<project>/.claude/skills/` instead.
@@ -53,15 +53,15 @@ For one project only, copy it into `<project>/.claude/skills/` instead.
 
 | Command | Mode |
 |---|---|
-| `/dashboard-taste:unslop <path>` | B: CSS-only cleanup |
-| `/dashboard-taste:redesign <path>` | C: measure, audit, brief, wait for approval |
-| `/dashboard-taste:build-dashboard` | A: new dashboard |
+| `/dashboardlify:unslop <path>` | B: CSS-only cleanup |
+| `/dashboardlify:redesign <path>` | C: measure, audit, brief, wait for approval |
+| `/dashboardlify:build-dashboard` | A: new dashboard |
 
-Manual installs get the short forms `/unslop`, `/redesign`, `/build-dashboard` by copying `plugins/dashboard-taste/commands/*.md` into `~/.claude/commands/`.
+Manual installs get the short forms `/unslop`, `/redesign`, `/build-dashboard` by copying `plugins/dashboardlify/commands/*.md` into `~/.claude/commands/`.
 
 ## How to use
 
-Open Claude Code in your project and ask in plain words. The skill triggers on dashboards, admin panels, analytics views, data tables and settings pages. You can also call it directly with `/dashboard-taste`.
+Open Claude Code in your project and ask in plain words. The skill triggers on dashboards, admin panels, analytics views, data tables and settings pages. You can also call it directly with `/dashboardlify`.
 
 | You say | Mode |
 |---|---|
@@ -109,7 +109,7 @@ Tip: commit or branch first. Mode B and C edit files in place.
 ## What is inside
 
 ```
-plugins/dashboard-taste/skills/dashboard-taste/
+plugins/dashboardlify/skills/dashboardlify/
 ├─ SKILL.md            entry point: modes, hard rules, procedures
 ├─ checklist.md        verify before you call it done
 └─ references/

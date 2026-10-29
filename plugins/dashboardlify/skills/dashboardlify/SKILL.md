@@ -1,9 +1,9 @@
 ---
-name: dashboard-taste
+name: dashboardlify
 description: Unslop, build and redesign dashboards with tight sizing, spacing, radius, color, shadow and motion. Use when building, redesigning, restructuring, reviewing or polishing any dashboard, admin panel, analytics view, back-office, data table screen or settings page, or when the user says a dashboard looks generic, AI-made, sloppy, asks to "unslop" it, "make it look designed/professional", wants a before/after, transform, reorganize layout, or convert data to charts. Works on new and existing code.
 ---
 
-# dashboard-taste
+# dashboardlify
 
 Numeric, token-driven dashboard design. Every size, color, radius, shadow and duration comes from a token. No invented values.
 
