@@ -1,5 +1,7 @@
 # dashboardlify
 
+[![skills.sh](https://skills.sh/b/ednaaaj/dashboardlify)](https://skills.sh/ednaaaj/dashboardlify)
+
 **`dashboardlify`** is an AI skill for Claude Code that builds, cleans up and redesigns admin dashboards so they look designed instead of generated. Every size, color, radius, shadow and duration comes from a fixed token set, so output is consistent and checkable.
 
 Text files only. No binaries, no build step, no dependencies.
@@ -39,6 +41,14 @@ Three densities: compact (tables, ops), default (mixed), comfortable (settings).
 ```
 
 Update later with `/plugin`.
+
+### Any agent (skills CLI)
+
+Skill only, no slash commands. Works with Claude Code, Cursor, Codex, Windsurf and others:
+
+```
+npx skills add ednaaaj/dashboardlify
+```
 
 ### Manually
 
