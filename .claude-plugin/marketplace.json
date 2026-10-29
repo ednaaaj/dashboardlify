@@ -1,0 +1,11 @@
+{
+  "name": "dashboardlify",
+  "owner": { "name": "ednaaaj" },
+  "plugins": [
+    {
+      "name": "dashboard-taste",
+      "source": "./plugins/dashboard-taste",
+      "description": "Unslop, build and redesign dashboards: spacing, radius, color, type, shadow and restrained motion."
+    }
+  ]
+}
