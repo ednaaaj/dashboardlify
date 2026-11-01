@@ -1,5 +1,7 @@
 # Anti-slop
 
+How to detect: run `scripts/scan.mjs`. Browser mode (`<url|file.html>`) measures rendered pages; `--src <dir>` gives a source-only estimate.
+
 | # | Slop pattern | Why bad | Fix |
 |---|---|---|---|
 | 1 | Gradient card backgrounds | Noise; competes with data | Flat `--surface`, 1px border |
@@ -59,3 +61,8 @@
 | 55 | Empty chart with no empty state | Looks broken | "No data for this range" line plus the filter to change |
 | 56 | Hero number of 40px+ or any off-scale size (28/36/40) | Off the type scale, shouts over the page title | Hero = `--text-xl` (24) default; `--text-2xl` (32) max, on one featured card |
 | 57 | Rounded-square icon tile above every heading | Decoration, pushes the title down | Icon inline left of the title, or drop it |
+| 58 | Pulsing or pinging elements that are not live status | Motion with no meaning, steals attention | Static dot; pulse only for a genuinely live indicator |
+| 59 | Greeting headline with emoji | Filler above the data | Page title names the page or period |
+| 60 | "New" / "Beta" / "PRO" sparkle badges | Decoration, trains users to ignore badges | Plain muted text label, or remove |
+| 61 | Glass or inner-highlight cards | Fake depth, low contrast | Flat `--surface`, 1px border |
+| 62 | Keyboard hints written as plain text | Hard to scan, inconsistent | Small keycap: 1px border, radius 4, 12px mono |

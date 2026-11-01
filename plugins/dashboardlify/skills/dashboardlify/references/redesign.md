@@ -1,13 +1,13 @@
-# REDESIGN procedure
+# REWORK procedure
 
-Entry point for restructuring an existing dashboard. Parent: [SKILL.md](../SKILL.md). Final gate: [checklist.md](../checklist.md).
+Entry point for restructuring an existing dashboard (Mode C: REWORK). Parent: [SKILL.md](../SKILL.md). Final gate: [checklist.md](../checklist.md).
 
 ## When to use
 
 | Mode | Scope | Touches |
 |---|---|---|
-| UNSLOP | token swap: colors, radius, type, spacing values | CSS only |
-| REDESIGN | structure: grouping, hierarchy, metric visuals, placement, compression | CSS, and JSX when needed |
+| TIGHTEN (B) | token swap: colors, radius, type, spacing values | CSS only |
+| REWORK (C) | structure: grouping, hierarchy, metric visuals, placement, compression | CSS, and JSX when needed |
 
 Dashboards are OPERATE surfaces: predictable structure, stable density, same place every visit. Redesign for scan speed, not novelty.
 
@@ -96,7 +96,7 @@ Compression guard: every removed, merged or hidden element is recorded with its 
 
 Distill rules while proposing: one primary action per region; never nest cards; progressive disclosure for secondary; remove redundant labels (a column titled "Amount" needs no "Amount:" in cells); flatten.
 
-**REDESIGN BRIEF template**
+**REWORK BRIEF template**
 
 ```
 Target: <app / page / route>     Preset: crisp|soft     Density: <level>
@@ -153,7 +153,7 @@ Tokens bridge -> shell/nav -> page header -> KPI row -> main region -> tables/li
 
 ```
 DEGRADED: single-context (<reason>)     <- FIRST line, only when degraded
-REDESIGN REPORT  <target>  <date>
+REWORK REPORT  <target>  <date>
 Thesis: ...
 Findings: P0 n | P1 n | P2 n | P3 n   (A-only n, B-only n, both n)
 ```

@@ -297,3 +297,16 @@ Top to bottom inside Card spec (`--card-border`, `--panel-bg` behind in soft):
 | Controls | checkbox (`--radius-xs`)/radio 16, label 14, gap 8; switch 32x20, immediate-effect settings only |
 
 - Group related fields in a Card per section (settings pages: label+description left col 240, controls right). Don't: horizontal labels in narrow containers, placeholder-only labels, disabled submit with no explanation.
+
+## Detail rules
+
+Numeric and testable. Apply in Mode B pass 7 and when building.
+
+- Nested radius: inner radius = outer radius - padding, minimum 4. Card `--radius-lg` (8) with 12 padding gives an inner element `--radius-xs` (4); never reuse the outer radius on a child. Express both with `--radius-*` tokens, no raw px.
+- One hero chart per screen. Other data visuals are smaller and a different kind (ranked list, table, stat strip), not a second chart of the same type.
+- One accent per chart. Other series come from the neutral ramp. Accent marks the series the reader should look at.
+- Stat cards hold label + value + delta-with-comparison only. No sparkline, mini bars or icon wells unless the icon is the metric itself.
+- One number format per screen: currency position, decimals and thousands separator are fixed. Use `font-variant-numeric: tabular-nums` and right alignment for numeric columns and values.
+- Counts and meta (row totals, tab counts, "12 items") are muted plain or mono text, not glowing pills or filled badges.
+- Shortcuts are small keycaps: 1px border, radius 4, 12px mono, never plain text like "Ctrl+K".
+- Icon + label rows share one icon box width (for example 16px glyph in a 20px box), so labels align on one left edge.

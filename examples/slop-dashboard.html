@@ -1,0 +1,135 @@
+<!-- Test fixture for the dashboardlify scan: slop = should score REWORK or TIGHTEN high. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Admin - Dashboard</title>
+<style>
+* { box-sizing: border-box; transition: all .6s; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%); min-height: 100vh; color: #1f2937; display: flex; }
+.sidebar { width: 280px; padding: 26px 18px; background: rgba(255,255,255,.92); border-radius: 0 32px 32px 0; box-shadow: 0 24px 48px rgba(124,58,237,.3); }
+.logo { font-size: 22px; font-weight: 800; margin-bottom: 26px; background: linear-gradient(90deg, #7c3aed, #ec4899); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nav a { display: block; padding: 13px 18px; margin-bottom: 13px; border-radius: 9999px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: #6b7280; text-decoration: none; font-weight: 600; }
+.nav a:hover { transform: translateX(8px) scale(1.04); color: #7c3aed; }
+.nav a.active { background: linear-gradient(90deg, #7c3aed, #ec4899); color: #fff; box-shadow: 0 12px 24px rgba(236,72,153,.4); }
+.main { flex: 1; padding: 22px 26px; }
+.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; }
+.search { width: 360px; padding: 13px 22px; border-radius: 9999px; border: none; font-size: 15px; box-shadow: 0 12px 24px rgba(0,0,0,.15); }
+h1 { font-size: 44px; font-weight: 800; margin: 0 0 6px; background: linear-gradient(90deg, #fde68a, #ffffff, #fbcfe8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sub { color: #e9d5ff; font-size: 17px; margin-bottom: 26px; }
+.btn { border: none; border-radius: 9999px; padding: 13px 26px; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; background: linear-gradient(90deg, #8b5cf6, #ec4899); box-shadow: 0 12px 24px rgba(124,58,237,.4); }
+.btn:hover { transform: translateY(-6px) scale(1.08) rotate(-1deg); }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 26px; margin-bottom: 26px; }
+.card { background: #fff; border-radius: 28px; padding: 32px; box-shadow: 0 24px 48px rgba(124,58,237,.3); position: relative; }
+.card:hover { transform: translateY(-10px) scale(1.03); }
+.card.pulse { animation: pulse 2s infinite; }
+.card-head { margin: -32px -32px 22px; padding: 18px 32px; border-radius: 28px 28px 0 0; background: linear-gradient(90deg, #8b5cf6, #ec4899); color: #fff; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+.well { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+.big { font-size: 44px; font-weight: 800; margin: 13px 0 6px; }
+.muted { color: #9ca3af; font-size: 11px; }
+.badge { font-size: 11px; padding: 4px 13px; border-radius: 9999px; color: #fff; font-weight: 700; }
+.pro { font-size: 11px; padding: 3px 10px; border-radius: 9999px; background: linear-gradient(90deg, #f59e0b, #ef4444); color: #fff; font-weight: 800; letter-spacing: .1em; }
+.dot { width: 13px; height: 13px; border-radius: 50%; background: #10b981; display: inline-block; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .7; } 100% { transform: scale(1); opacity: 1; } }
+.row2 { display: grid; grid-template-columns: 1fr 2fr; gap: 26px; margin-bottom: 26px; }
+.glass { background: rgba(255,255,255,.18); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,.4); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 24px 48px rgba(0,0,0,.2); border-radius: 28px; padding: 32px; color: #fff; }
+.bars { display: flex; align-items: flex-end; gap: 18px; height: 200px; }
+.bar { flex: 1; border-radius: 13px 13px 0 0; }
+.bar:hover { transform: scaleY(1.1); }
+table { width: 100%; border-collapse: collapse; text-align: center; }
+th { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: #9ca3af; padding: 13px; }
+td { height: 64px; font-size: 15px; border-top: 1px solid #f3f4f6; }
+tr:hover td { background: #faf5ff; }
+.pill { display: inline-block; padding: 6px 18px; border-radius: 9999px; font-size: 13px; font-weight: 700; color: #fff; }
+.lead { font-size: 19px; } .foot { color: #9ca3af; font-size: 11px; margin-top: 22px; }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="logo">🚀 Acme Admin</div>
+  <nav class="nav">
+    <a class="active" href="#">🏠 Dashboard</a>
+    <a href="#">📊 Analytics</a>
+    <a href="#">🛒 Orders</a>
+    <a href="#">👥 Customers</a>
+    <a href="#">💳 Billing</a>
+    <a href="#">⚙️ Settings</a>
+  </nav>
+</aside>
+<main class="main">
+  <div class="top">
+    <input class="search" placeholder="Search anything..." aria-label="Search">
+    <button class="btn">✨ Create Report</button>
+  </div>
+  <h1>Welcome back, Sam!! 👋</h1>
+  <div class="sub">Here's what's happening with Acme today <span class="dot"></span></div>
+
+  <section class="grid">
+    <div class="card pulse">
+      <div class="card-head">Revenue <span class="badge" style="background:#f43f5e">New ✨</span></div>
+      <div class="well" style="background:#ede9fe">💰</div>
+      <div class="big">$123,456</div>
+      <div class="muted">vs last month</div>
+    </div>
+    <div class="card">
+      <div class="card-head">Users <span class="pro">PRO</span></div>
+      <div class="well" style="background:#cffafe">👥</div>
+      <div class="big">1,000</div>
+      <div class="muted">active this week</div>
+    </div>
+    <div class="card">
+      <div class="card-head">Orders <span class="badge" style="background:#10b981">Hot 🔥</span></div>
+      <div class="well" style="background:#fef3c7">🛍️</div>
+      <div class="big">8,742</div>
+      <div class="muted">since Monday</div>
+    </div>
+    <div class="card">
+      <div class="card-head">Growth <span class="badge" style="background:#3b82f6">Beta</span></div>
+      <div class="well" style="background:#fce7f3">📈</div>
+      <div class="big">+37%</div>
+      <div class="muted">quarter to date</div>
+    </div>
+  </section>
+
+  <section class="row2">
+    <div class="glass">
+      <div style="font-size:22px;font-weight:700;margin-bottom:13px">Quick Insights 💡</div>
+      <div style="font-size:15px;line-height:1.7">Acme traffic is up 19% and conversions look amazing. Keep crushing it!</div>
+      <div style="margin-top:22px"><button class="btn">Learn more →</button></div>
+    </div>
+    <div class="card">
+      <div style="font-size:28px;font-weight:800;margin-bottom:18px">Weekly Sales 📊</div>
+      <div class="bars">
+        <div class="bar" style="height:62%;background:#ef4444"></div>
+        <div class="bar" style="height:88%;background:#f97316"></div>
+        <div class="bar" style="height:47%;background:#eab308"></div>
+        <div class="bar" style="height:100%;background:#22c55e"></div>
+        <div class="bar" style="height:71%;background:#06b6d4"></div>
+        <div class="bar" style="height:54%;background:#3b82f6"></div>
+        <div class="bar" style="height:83%;background:#a855f7"></div>
+      </div>
+      <div class="muted" style="margin-top:13px">Mon &nbsp; Tue &nbsp; Wed &nbsp; Thu &nbsp; Fri &nbsp; Sat &nbsp; Sun</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div style="font-size:28px;font-weight:800;margin-bottom:18px">Recent Orders 🧾</div>
+    <table>
+      <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>#10482</td><td>Marta Okonkwo</td><td>$1,284.50</td><td><span class="pill" style="background:#10b981">Paid</span></td></tr>
+        <tr><td>#10481</td><td>Dev Ramaswamy</td><td>$87.00</td><td><span class="pill" style="background:#f59e0b">Pending</span></td></tr>
+        <tr><td>#10480</td><td>Lena Fischbach</td><td>$12,903.15</td><td><span class="pill" style="background:#3b82f6">Shipped</span></td></tr>
+        <tr><td>#10479</td><td>Tomasz Wrona</td><td>$342.99</td><td><span class="pill" style="background:#ef4444">Failed</span></td></tr>
+        <tr><td>#10478</td><td>Priya Nandakumar</td><td>$6,018.00</td><td><span class="pill" style="background:#a855f7">Refunded</span></td></tr>
+        <tr><td>#10477</td><td>Jamal Whitcombe</td><td>$459.20</td><td><span class="pill" style="background:#10b981">Paid</span></td></tr>
+        <tr><td>#10476</td><td>Sofia Brandvold</td><td>$2,775.80</td><td><span class="pill" style="background:#f59e0b">Pending</span></td></tr>
+        <tr><td>#10475</td><td>Hiro Takeuchi</td><td>$64.35</td><td><span class="pill" style="background:#3b82f6">Shipped</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <div class="foot lead">© Acme Inc. Made with 💜</div>
+</main>
+</body>
+</html>

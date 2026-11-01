@@ -1,0 +1,113 @@
+<!-- Test fixture for the dashboardlify scan: clean = should score LEAVE. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Admin - Overview</title>
+<style>
+:root {
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px;
+  --t-xs: 12px; --t-sm: 13px; --t-md: 14px; --t-lg: 20px; --t-xl: 24px;
+  --r1: 4px; --r2: 6px; --r3: 8px;
+  --accent: #2563eb;
+  --bg: #fafafa; --surface: #ffffff;
+  --border: #e4e4e7; --hover: #f4f4f5;
+  --text: #18181b; --muted: #52525b;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+}
+* { box-sizing: border-box; margin: 0; }
+body { font: 400 var(--t-md)/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); display: flex; min-height: 100vh; }
+.sidebar { width: 240px; flex: none; background: var(--surface); border-right: 1px solid var(--border); padding: var(--s4) var(--s3); }
+.brand { font-weight: 600; padding: var(--s2); margin-bottom: var(--s4); }
+.nav a { display: flex; align-items: center; gap: var(--s2); height: 36px; padding: 0 var(--s2); border-radius: var(--r2); color: var(--muted); text-decoration: none; font-size: var(--t-md); font-weight: 500; transition: background-color 120ms var(--ease); }
+.nav a:hover { background: var(--hover); }
+.nav a[aria-current] { background: var(--hover); color: var(--text); }
+.nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.main { flex: 1; padding: var(--s6) var(--s8); max-width: 1160px; }
+.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s6); }
+h1 { font-size: var(--t-xl); font-weight: 600; line-height: 32px; }
+.search { width: 280px; height: 36px; padding: 0 var(--s3); border: 1px solid var(--border); border-radius: var(--r2); font: inherit; background: var(--surface); color: var(--text); }
+.search::placeholder { color: var(--muted); }
+.btn { height: 36px; padding: 0 var(--s4); border: 0; border-radius: var(--r2); background: var(--accent); color: #fff; font-size: var(--t-md); font-weight: 500; font-family: inherit; cursor: pointer; transition: background-color 120ms var(--ease); }
+.btn:hover { background: #1d4ed8; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s4); margin-bottom: var(--s6); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r3); padding: var(--s4); }
+.label { font-size: var(--t-xs); color: var(--muted); font-weight: 500; }
+.value { font-size: var(--t-xl); font-weight: 600; font-variant-numeric: tabular-nums; margin: var(--s1) 0; }
+.delta { font-size: var(--t-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.card h2 { font-size: var(--t-md); font-weight: 600; margin-bottom: var(--s3); }
+.chart { margin-bottom: var(--s6); }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart text { font-size: 12px; fill: #52525b; font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+th { font-size: var(--t-xs); font-weight: 500; color: var(--muted); text-align: left; height: 40px; padding: 0 var(--s3); border-bottom: 1px solid var(--border); }
+td { height: 40px; padding: 0 var(--s3); border-bottom: 1px solid var(--border); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background-color 120ms var(--ease); }
+tbody tr:hover { background: var(--hover); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.status { display: inline-flex; align-items: center; gap: var(--s2); padding: 0 var(--s2); height: 20px; border: 1px solid var(--border); border-radius: var(--r1); font-size: var(--t-xs); font-weight: 500; }
+.status i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">Acme Admin</div>
+  <nav class="nav">
+    <a href="#" aria-current="page"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7l6-5 6 5v7H2z"/></svg>Overview</a>
+    <a href="#"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14V2m0 12h12M5 11V8m3 3V5m3 6V7"/></svg>Analytics</a>
+    <a href="#"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h2l1.5 7h7L14 5H5"/><circle cx="6" cy="13" r=".5"/><circle cx="12" cy="13" r=".5"/></svg>Orders</a>
+    <a href="#"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5"/></svg>Customers</a>
+    <a href="#"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12"/></svg>Billing</a>
+    <a href="#"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"/></svg>Settings</a>
+  </nav>
+</aside>
+<main class="main">
+  <div class="top">
+    <h1>Overview</h1>
+    <div style="display:flex;gap:var(--s2)">
+      <input class="search" placeholder="Search" aria-label="Search">
+      <button class="btn">Create report</button>
+    </div>
+  </div>
+
+  <section class="kpis">
+    <div class="card"><div class="label">Revenue</div><div class="value">$123,456</div><div class="delta">+12.5% vs last month</div></div>
+    <div class="card"><div class="label">Active users</div><div class="value">1,004</div><div class="delta">+4.2% vs last month</div></div>
+    <div class="card"><div class="label">Orders</div><div class="value">8,742</div><div class="delta">+9.8% vs last month</div></div>
+    <div class="card"><div class="label">Conversion</div><div class="value">3.7%</div><div class="delta">+0.6% vs last month</div></div>
+  </section>
+
+  <section class="card chart">
+    <h2>Weekly sales</h2>
+    <svg viewBox="0 0 640 200" role="img" aria-label="Weekly sales, Monday to Sunday">
+      <g stroke="#e4e4e7" stroke-width="1">
+        <line x1="40" y1="20" x2="630" y2="20"/><line x1="40" y1="70" x2="630" y2="70"/>
+        <line x1="40" y1="120" x2="630" y2="120"/><line x1="40" y1="170" x2="630" y2="170"/>
+      </g>
+      <polyline fill="none" stroke="#2563eb" stroke-width="2" stroke-linejoin="round" points="60,112 150,64 240,128 330,34 420,92 510,118 600,58"/>
+      <text x="4" y="24">$16k</text><text x="4" y="74">$12k</text><text x="4" y="124">$8k</text><text x="4" y="174">$4k</text>
+      <text x="48" y="192">Mon</text><text x="138" y="192">Tue</text><text x="228" y="192">Wed</text><text x="318" y="192">Thu</text><text x="408" y="192">Fri</text><text x="498" y="192">Sat</text><text x="588" y="192">Sun</text>
+    </svg>
+  </section>
+
+  <section class="card">
+    <h2>Recent orders</h2>
+    <table>
+      <thead><tr><th>Order</th><th>Customer</th><th class="num">Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>#10482</td><td>Marta Okonkwo</td><td class="num">$1,284.50</td><td><span class="status" style="--c:#16a34a"><i></i>Paid</span></td></tr>
+        <tr><td>#10481</td><td>Dev Ramaswamy</td><td class="num">$87.00</td><td><span class="status" style="--c:#d97706"><i></i>Pending</span></td></tr>
+        <tr><td>#10480</td><td>Lena Fischbach</td><td class="num">$12,903.15</td><td><span class="status" style="--c:#2563eb"><i></i>Shipped</span></td></tr>
+        <tr><td>#10479</td><td>Tomasz Wrona</td><td class="num">$342.99</td><td><span class="status" style="--c:#dc2626"><i></i>Failed</span></td></tr>
+        <tr><td>#10478</td><td>Priya Nandakumar</td><td class="num">$6,018.00</td><td><span class="status" style="--c:#71717a"><i></i>Refunded</span></td></tr>
+        <tr><td>#10477</td><td>Jamal Whitcombe</td><td class="num">$459.20</td><td><span class="status" style="--c:#16a34a"><i></i>Paid</span></td></tr>
+        <tr><td>#10476</td><td>Sofia Brandvold</td><td class="num">$2,775.80</td><td><span class="status" style="--c:#d97706"><i></i>Pending</span></td></tr>
+        <tr><td>#10475</td><td>Hiro Takeuchi</td><td class="num">$64.35</td><td><span class="status" style="--c:#2563eb"><i></i>Shipped</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

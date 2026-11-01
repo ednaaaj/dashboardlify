@@ -1,6 +1,6 @@
 # Verify loop
 
-Run after build, unslop or redesign. Fix, re-screenshot, repeat until all checked (max 3 rounds).
+Run after build, tighten or rework. Fix, re-screenshot, repeat until all checked (max 3 rounds).
 
 ## Capture
 - [ ] Screenshot at 1440px wide
@@ -20,6 +20,9 @@ Run after build, unslop or redesign. Fix, re-screenshot, repeat until all checke
 
 ## Contrast and type
 - [ ] Body text >= 4.5:1; large text and UI borders >= 3:1
+- [ ] No dark-on-dark or light-on-light text: all text pairs >= 3:1, body >= 4.5:1
+- [ ] Filled controls (button, solid badge, active nav, chip) use white text on a fill that passes 4.5:1, in light and dark mode
+- [ ] No dark text on a mid-tone or dark fill
 - [ ] Numbers right-aligned with tabular-nums
 - [ ] Text left-aligned in tables
 
@@ -39,11 +42,23 @@ Run after build, unslop or redesign. Fix, re-screenshot, repeat until all checke
 - [ ] Realistic data; long names truncate with ellipsis
 - [ ] Focus ring visible on all interactive elements
 
-## Behavior (unslop only)
+## Behavior (tighten only)
 - [ ] Props, handlers, data flow unchanged
 - [ ] Grep scan from SKILL.md returns zero unjustified hits (skeleton shimmer, tokens.css, allowed exceptions excluded)
 
-## Redesign (mode C only)
+## Colour and content
+- [ ] Palette verdict was honoured (KEEP left untouched)
+- [ ] Result is not grayscale-only (>= 1 chromatic accent, neutrals tinted)
+- [ ] Accent contrast numbers recorded in the Color brief
+- [ ] No hue-to-hue gradients remain
+- [ ] Zones: foreground on dark zones (brand, ink) is light, foreground on paper is dark
+- [ ] Brand zone foreground and muted text >= 4.5:1
+- [ ] No more than two non-page zones on one screen
+- [ ] Data surfaces (tables, charts, forms) sit on page or surface zones
+- [ ] Every region has a named decision (build, rework)
+- [ ] Caps from references/render-only.md respected
+
+## Rework (mode C only)
 - [ ] Squint test: before vs after, the hero numbers and primary action stand out first
 - [ ] Screenshots before and after at 1440 and 390
 - [ ] Regions align on shared left edges
