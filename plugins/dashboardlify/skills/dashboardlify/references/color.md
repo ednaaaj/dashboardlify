@@ -1,5 +1,7 @@
 # Color
 
+Palette choice, verdicts (KEEP/ADJUST/REPLACE) and tinting neutrals toward the brand hue: see [color-match.md](color-match.md). The zinc ramp below is the untinted base.
+
 Contrast computed with WCAG 2.x relative luminance. Text >= 4.5:1, UI/graphics >= 3:1.
 
 ## Neutral ramp (zinc)
@@ -37,7 +39,7 @@ Dark depth = lighter surface + border. No shadow reliance.
 | --accent-subtle (selected row, active nav bg) | #eef3fd | #1a2134 |
 | --text-on-accent | #ffffff | #ffffff |
 
-Rule: accent is for primary action, selection, links, focus, chart series 1. Never for decoration, backgrounds of large areas, or more than one primary button per view. Replacement accent must hit >= 4.5:1 with white.
+Rule (one accent): accent is for primary action, selection, links, focus, chart series 1. Never for decoration, backgrounds of large areas, or more than one primary button per view. Replacement accent must hit >= 4.5:1 with white.
 
 ## Semantic
 | Role | fg | bg (--*-bg) | border | Dark fg | Dark bg | Dark border |
@@ -59,7 +61,7 @@ Danger destructive button fill: --danger-solid #dc2626 with white text. Status n
 | 5 | vermilion | #c2410c | 5.18 | #fb8a5c | 7.50 |
 | 6 | teal | #0e7490 | 5.36 | #5cc8e0 | 9.11 |
 
-Hues follow Okabe-Ito (colorblind-safe), darkened for contrast. Default: use series 1 only; add 2-5 only for real categories; max 6; never rainbow. Series 2 vs 5 are close: do not place adjacent. Direct-label or add marker shapes.
+Colourblind-safe hues, darkened for contrast. Default: use series 1 only; add 2-5 only for real categories; max 6; never rainbow. Series 2 vs 5 are close: do not place adjacent. Direct-label or add marker shapes.
 
 Sequential (one hue, light to dark = low to high): #dbeafe, #93c5fd, #3b82f6, #1d4ed8, #1e3a8a (dark mode reverses so high stays brightest). Diverging only with a real midpoint: danger-fg vs info-fg through neutral-100. Gridlines neutral-200 (dark 800), 1px, axis text 12px --chart-axis.
 

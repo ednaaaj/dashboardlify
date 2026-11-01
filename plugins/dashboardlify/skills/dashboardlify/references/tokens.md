@@ -94,7 +94,7 @@ See `color.md` for hex. Usage:
 | --border / --border-strong | dividers, cards / hover, emphasis | text |
 | --border-input | input outline (neutral-500 in both themes: 4.83:1 on white, 3.67:1 on #18181b) | cards |
 | --text / --text-muted / --text-subtle | primary / secondary, labels / placeholder, meta (--text-subtle #6b6b74: 5.28 on #fff, 5.06 on #fafafa, 4.80 on #f4f4f5) | disabled-only info |
-| --accent, --accent-hover | primary button, selection, focus | decoration |
+| --accent, --accent-hover | primary button, selection, focus; text on it is --text-on-accent (white by default, fill must reach 4.5:1 with it, light and dark) | decoration, dark text on a mid or dark fill |
 | --accent-text, --accent-subtle | links, active nav / selected row | |
 | --{success,warning,danger,info}-{fg,bg,border} | status badge, alert, inline validation | brand color |
 | --chart-1..6, --seq-1..5 | data only | UI chrome |

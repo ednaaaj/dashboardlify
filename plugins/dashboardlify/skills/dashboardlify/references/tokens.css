@@ -54,7 +54,7 @@
   --text: var(--neutral-900);
   --text-muted: var(--neutral-600);
   --text-subtle: #6b6b74; /* >=4.5:1 on #fff, #fafafa, #f4f4f5 (5.28/5.06/4.80) */
-  --text-on-accent: #ffffff;
+  --text-on-accent: #ffffff; /* white by default in light and dark; --accent-base must hold >=4.5:1 with it */
 
   --accent: var(--accent-base);
   --accent-hover: color-mix(in srgb, var(--accent-base), #000 12%);
