@@ -5,6 +5,9 @@ Two fictional "Acme" admin screens used as scan fixtures.
 - `slop-dashboard.html` is a deliberately sloppy, AI-looking dashboard. The scan should flag it heavily.
 - `clean-dashboard.html` is the same screen written with tight tokens. The scan should leave it alone.
 
+- `messy-home.html` is a home page with layout problems (scan: `LAYOUT ARRANGE`, score 15, plus the note `also needs JSX: placeholder-widgets (rework)`): tall top bar, big hero, six equal cards with identical icon tiles, an empty widget, truncated text.
+- `arranged-home.html` has identical markup. Only the CSS differs (the kind of change `/dashboardlify:arrange` makes), so the scan should print `LAYOUT OK` (with notes) and a visible change against the messy one. Use different paths for `--shot` and `--visible-change` (exit 2 if equal).
+
 ## Scan
 
 From this folder:
@@ -21,6 +24,13 @@ Never run it on the original. Copy first:
 ```sh
 cp slop-dashboard.html /tmp/slop-copy.html
 /dashboardlify:tighten /tmp/slop-copy.html
+```
+
+Layout fixtures:
+
+```sh
+node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs messy-home.html --shot /tmp/messy.png
+node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs arranged-home.html --visible-change /tmp/messy.png
 ```
 
 Then scan the copy again and open both in a browser to compare.

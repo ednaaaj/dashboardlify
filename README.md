@@ -22,6 +22,7 @@ Typical "AI dashboard" problems it targets:
 |---|---|---|
 | **A. Build** | Starting a new dashboard | Whole screen, from tokens |
 | **B. Tighten** | You have a dashboard and want it cleaned up | CSS values only. Behavior and structure stay the same |
+| **D. Arrange** | The dashboard looks messy or "nothing changed" after a tighten | Layout through CSS only: top bar and hero height, card grid, padding, icon tiles. No JSX |
 | **C. Rework** | You want layout, hierarchy, charts and density reworked | Structure too. It writes a brief first and waits for your approval before touching code |
 
 Two style presets, pick one per product:
@@ -63,21 +64,28 @@ For one project only, copy it into `<project>/.claude/skills/` instead.
 
 | Command | What it does |
 |---|---|
+| `/dashboardlify:improve <url\|file\|--src dir>` | **Start here.** Measures, then decides itself: colors, layout, components. Proves the change is visible |
+| `/dashboardlify:build` | New dashboard from tokens |
+
+One step only, if you want it:
+
+| Command | What it does |
+|---|---|
 | `/dashboardlify:scan <url\|file\|--src dir>` | Measure and print a verdict, no edits |
 | `/dashboardlify:tighten <path> [--copy]` | B: whole-app token pass, CSS only |
+| `/dashboardlify:arrange [path]` | D: CSS-only layout pass, ends with a visible-change check |
 | `/dashboardlify:rework <path>` | C: measure, audit, brief, approve, rebuild |
-| `/dashboardlify:build` | A: new dashboard from tokens |
 
 ## Measure first
 
 Every existing-dashboard run starts with a scan, so the work follows evidence instead of taste.
 
 ```
-node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--no-palette]
+node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--no-palette] [--combo calm|paper|brand] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout]
 node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs --src <dir>   # source-only estimate
 ```
 
-Needs Node 22 and Chrome. No installs. It counts the things that make a screen look generated: distinct font sizes, radii and colours, off-scale spacing, shadows, gradients, uppercase text, mixed icon sizes, low-contrast text, and long or looping motion.
+Needs Node 22 and Chrome. No installs. `--combo calm|paper|brand` picks the colour combo the PALETTE block reports (calm for dense data, paper for warm or consumer products, brand for brand-heavy ones). It counts the things that make a screen look generated: distinct font sizes, radii and colours, off-scale spacing, shadows, gradients, uppercase text, mixed icon sizes, low-contrast text, and long or looping motion.
 
 | Score | Verdict | Meaning |
 |---|---|---|
@@ -95,6 +103,16 @@ Example delta after a tighten run (illustrative numbers):
 | Off-scale spacing | 38 | 0 |
 | Shadows | 9 | 1 |
 | Score | 52 | 6 |
+
+## Why did nothing change?
+
+Tighten is a values pass: sizes, colours, radii, spacing. If the real problems are layout (a tall top bar with a big logo, a banner taking a quarter of the first screen, six equal cards with the same icon tile, empty "--" widgets, truncated text, little data above the fold), snapping values to a scale will not move anything you can see.
+
+- Two verdicts. The value verdict is LEAVE / TIGHTEN / REWORK. The LAYOUT verdict is OK (score under 3, or only low-weight JSX notes), ARRANGE (score 3 or more and CSS can fix it, even if some JSX-only notes remain) or REWORK (JSX-only issues dominate: score 14+ with 2 or more JSX issues, or score 5+ with a JSX-only issue of weight 2+). The scan prints both, plus a `NEXT:` line when layout is worse.
+- Visible-change gate. Tighten and arrange save a before screenshot and end with `--visible-change`. VISIBLE is 8% or more of the first screen changed, SUBTLE is 3-8%, NOT VISIBLE is under 3%. INCOMPARABLE means the two shots have different widths (exit 1); a different height is cropped to the shorter one. `--shot` and `--visible-change` must be different paths (exit 2 if equal). A NOT VISIBLE result is never reported as success; the run diagnoses why.
+- Arrange vs rework. Arrange (`/dashboardlify:arrange`) moves and resizes with CSS and touches no JSX. Rework changes structure, needs an approved brief, and handles what CSS cannot (placeholder widgets, wrapper markup). Arrange marks those issues "needs JSX".
+
+Recipes: `references/layout-recipes.md`.
 
 ## Colour matching
 
@@ -138,6 +156,15 @@ node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs examples/clean-
 
 The first scores high, the second lands on LEAVE.
 
+For layout, scan the messy home page, then the arranged one. They share identical markup; only the CSS differs:
+
+```
+node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs examples/messy-home.html --shot /tmp/messy.png
+node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs examples/arranged-home.html --visible-change /tmp/messy.png
+```
+
+The first prints `LAYOUT ARRANGE` (score 15) with its issue list, plus a note `also needs JSX: placeholder-widgets (rework)`. The second prints `LAYOUT OK` with notes and a VISIBLE CHANGE against the first screenshot.
+
 ## How to use
 
 Open Claude Code in your project and ask in plain words. The skill triggers on dashboards, admin panels, analytics views, data tables and settings pages. You can also call it directly with `/dashboardlify`.
@@ -146,6 +173,7 @@ Open Claude Code in your project and ask in plain words. The skill triggers on d
 |---|---|
 | "Build me an orders dashboard, compact, crisp" | A |
 | "Tighten this dashboard" / "clean up the spacing and colors" / "swap in tokens" | B |
+| "Move things around" / "it looks messy" / "tighten changed nothing" | D |
 | "Rework the home page" / "reorganize the layout" / "turn this table into charts" | C |
 
 What happens:
@@ -189,9 +217,9 @@ Tip: commit or branch first. Modes B and C edit files in place.
 
 ```
 plugins/dashboardlify/skills/dashboardlify/
-├─ SKILL.md            entry point: modes, hard rules, procedures
+├─ SKILL.md            entry point: modes A-D, hard rules, procedures
 ├─ checklist.md        verify before you call it done
-├─ scripts/scan.mjs    measure a page or source dir, print a verdict
+├─ scripts/scan.mjs    measure a page or source dir, print verdicts, screenshots
 └─ references/
    ├─ tokens.css       the variables (copy, do not retype)
    ├─ tokens.md        scales and when to use each
@@ -200,7 +228,8 @@ plugins/dashboardlify/skills/dashboardlify/
    ├─ palettes.md      curated pairs, 28 domains, zones and combos, dark mode, charts
    ├─ palettes/        palettes.json (scales, domains, combos, contrast), combos.md (generated), NOTICE.md
    ├─ render-only.md   which regions earn a place, caps, cut list
-   ├─ layout.md        shell, grid, page widths
+   ├─ layout.md        shell, grid, page widths, numeric targets
+   ├─ layout-recipes.md  CSS fixes per LAYOUT issue (Mode D), hierarchy checklist
    ├─ density.md       compact / default / comfortable
    ├─ components.md    cards, tables, forms, charts, nav, states
    ├─ motion.md        allowed transitions and reduced motion

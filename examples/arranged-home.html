@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- test fixture: messy-home.html with CSS only changes: same markup, arranged layout. arranged-home is messy-home with CSS only changes -->
+<html lang="en"><head><meta charset="utf-8"><title>Northwind Supply portal</title>
+<style>
+*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f6f1ea;color:#2b2118;font-size:14px}
+.shell{display:grid;grid-template-columns:200px 1fr}
+.side{position:sticky;top:0;height:100vh;align-self:start;background:#2b2118;padding:16px 12px}
+.side a{display:flex;align-items:center;gap:8px;padding:8px 0;color:#f3e9dc;text-decoration:none;font-size:14px;font-weight:500}
+.ico{display:flex;color:#d8c3a5}
+.ico svg{width:16px;height:16px}
+.top{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#fff;border-bottom:1px solid #e5ddd3}
+.logo{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;color:#2b2118}
+.mark{width:24px;height:24px;color:#6b4a2f}
+.btn{padding:6px 14px;border:0;border-radius:6px;color:#fff;font:500 13px system-ui;margin-left:8px}
+.dark{background:#000}.brown{background:#6b4a2f}
+main{padding:0 24px 24px}
+.crumbs{padding:12px 0;color:#7a6a5a;font-size:13px}
+.hero{height:96px;display:flex;align-items:center;gap:24px;padding:0 24px;border-radius:8px;color:#fff;background:linear-gradient(120deg,#2b2118,#6b4a2f 60%,#b08a5e)}
+.hero h1{font-size:24px;font-weight:600;white-space:nowrap}
+.hero p{font-size:14px;line-height:1.4}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-top:16px}
+.card{grid-column:span 3;display:grid;grid-template-columns:16px 1fr auto;column-gap:8px;align-items:center;padding:20px;background:#fff;border:1px solid #e5ddd3;border-radius:8px;min-width:0}
+.card.wide{grid-column:span 8;grid-template-columns:16px 1fr}
+.card.narrow{grid-column:span 4;grid-template-columns:16px 1fr}
+.tile{display:flex;color:#6b4a2f}
+.tile svg{width:16px;height:16px}
+.card h3{font-size:14px;font-weight:600}
+.sub{grid-column:2;color:#7a6a5a;font-size:12px}
+.kpi .val{grid-column:3;grid-row:1/3;text-align:right;font-size:24px;font-weight:600}
+.val small{display:block;font-size:12px;font-weight:400;color:#7a6a5a}
+.cols{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.cols span{display:block;font-size:12px;color:#7a6a5a}
+.cols b{font-size:20px;font-weight:600}
+.list{grid-column:1/-1;list-style:none;padding:0;margin-top:8px}
+.list li{padding:4px 0;font-size:13px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <nav>
+    <a href="#"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>Home</a>
+    <a href="#"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>Orders</a>
+    <a href="#"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>Tickets</a>
+    <a href="#"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>Shipments</a>
+    <a href="#"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>Reports</a>
+    <a href="#"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>Settings</a>
+    </nav>
+  </aside>
+  <div class="col">
+    <header class="top">
+      <div class="logo"><svg class="mark" viewBox="0 0 24 24" fill="currentColor"><path d="M4 20 12 4l8 16z"/></svg><span>Northwind Supply</span></div>
+      <div class="actions"><button class="btn dark">New request</button><button class="btn brown">Upload files</button></div>
+    </header>
+    <main>
+      <div class="crumbs">Home / Portal / Overview</div>
+      <section class="hero"><h1>Every order. One place.</h1><p>Orders, shipments and tickets for every team, in a single portal that keeps requests moving.</p></section>
+      <div class="grid">
+      <section class="card kpi"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Orders</h3><p class="sub">Sales</p><div class="val">13<small>open orders</small></div></section>
+      <section class="card kpi"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Tickets</h3><p class="sub">Support</p><div class="val">0<small>open tickets</small></div></section>
+      <section class="card kpi"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Shipments</h3><p class="sub">Operations</p><div class="val">24<small>in transit</small></div></section>
+      <section class="card kpi"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Approvals</h3><p class="sub">Your queue</p><div class="val">3<small>waiting for you</small></div></section>
+      <section class="card wide"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Month to date</h3><p class="sub">Receipts</p><div class="cols"><div><span>Paid</span><b>--</b></div><div><span>Due</span><b>--</b></div><div><span>Late</span><b>--</b></div></div></section>
+      <section class="card narrow"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Notifications</h3><p class="sub">Latest activity</p>
+        <ul class="list">
+        <li>Order 2041 is overdue by 5 days and needs approval</li>
+        <li>Ticket 118 was reassigned to the support team this morning</li>
+        <li>Shipment 77 finished processing and is ready to review</li>
+        <li>Your upload of receipts-q3.pdf (2 MB) was received</li>
+        <li>Maintenance window starts tonight at 22:00 UTC</li>
+        <li>3 files are waiting for your review in the shared folder</li>
+        </ul></section>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>
