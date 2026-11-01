@@ -1,5 +1,4 @@
 # PostHog (app)
-Sources: PostHog/posthog repo: frontend/src/styles/base.scss, vars; LemonTable.scss; common/tailwind/tailwind.css. Confidence: PUBLISHED for tokens below; layout paddings not read, marked unknown.
 
 ## Shell
 - Project navbar width 215px, collapsed 45px (PUBLISHED, --project-navbar-width). Topbar height unknown. Page padding unknown. Max-width unknown.

@@ -1,5 +1,4 @@
 # Linear
-Sources: linear.app marketing CSS vars (MEASURED, tokens ship in same system as app but app CSS not reachable); linear.app/brand (PUBLISHED); app layout = unknown.
 
 ## Shell (unknown, app is logged-in; do not guess numbers)
 Sidebar width, topbar height, page padding, max-width: unknown. Known pattern (ESTIMATED): dense left sidebar, no heavy topbar, list rows fill full width.

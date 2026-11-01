@@ -46,6 +46,13 @@ Run after build, tighten or rework. Fix, re-screenshot, repeat until all checked
 - [ ] Props, handlers, data flow unchanged
 - [ ] Grep scan from SKILL.md returns zero unjustified hits (skeleton shimmer, tokens.css, allowed exceptions excluded)
 
+## Visible change (tighten and arrange)
+- [ ] Before screenshot saved, `--visible-change` measured and VISIBLE (>= 8%), or the shortfall is diagnosed honestly (never "done" under 3%)
+- [ ] LAYOUT block re-run; issues left are listed with their fix class (css or jsx)
+- [ ] No new horizontal scroll at 1280, 1440 and 768
+- [ ] Single-column fallback under 900px
+- [ ] DOM and class names unchanged (text unchanged, no JSX edits)
+
 ## Colour and content
 - [ ] Palette verdict was honoured (KEEP left untouched)
 - [ ] Result is not grayscale-only (>= 1 chromatic accent, neutrals tinted)

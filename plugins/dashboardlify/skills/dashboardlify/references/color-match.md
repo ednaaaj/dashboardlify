@@ -72,6 +72,6 @@ For KEEP, list the proposed tokens as "unchanged" and show only contrast fixes.
 
 ## Worked examples (illustrative)
 
-Dental-lab dashboard, verdict ADJUST. Domain: health/lab (high; signals: patient, case, sample). The existing teal is close to the curated teal, but white on its fill is under 4.5:1 and the neutrals are pure grey. Move to curated teal + sage: light fill #008573 (step 11, white text), dark fill #207e73 (step 8, white text), accent text step 12 on the surface in light mode. Values from palettes.json; the hue stays teal because the product already reads teal.
+Clinic dashboard, verdict ADJUST. Domain: health/clinic (high; signals: patient, case, sample). The existing teal is close to the curated teal, but white on its fill is under 4.5:1 and the neutrals are pure grey. Move to curated teal + sage: light fill #008573 (step 11, white text), dark fill #207e73 (step 8, white text), accent text step 12 on the surface in light mode. Values from palettes.json; the hue stays teal because the product already reads teal.
 
 Finance dashboard with a violet-to-pink gradient and rainbow charts, verdict REPLACE. Domain: finance (high; signals: invoice, payout, ledger). No brand colour found, so use the curated default blue + slate: light fill step 11 #0d74ce with white text (4.7:1), dark fill step 8 #2870bd. Remove the gradient. Charts: the accent fill first, then colourblind-safe set colours away from the accent hue; one accent plus neutral series is preferred. If a theme-color or logo existed, ask before changing the hue.

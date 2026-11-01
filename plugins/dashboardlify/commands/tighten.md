@@ -8,7 +8,7 @@ Use the dashboardlify skill (Skill tool, skill `dashboardlify`) in Mode B: TIGHT
 Scope: `$ARGUMENTS` (minus flags). If empty, the scope is the WHOLE APP: the shell (sidebar, topbar, page wrapper, breadcrumb), the dashboard/home page, and every routed page. Never stop after one file.
 
 Procedure:
-0. Triage. Run `node <skill dir>/scripts/scan.mjs <url-or-html> --json before.json` (or `--src <dir>` when there is no dev server). Read the PALETTE block (verdict KEEP/ADJUST/REPLACE, see references/color-match.md); `--no-palette` skips it. Branch on the verdict:
+0. Triage. Run `node <skill dir>/scripts/scan.mjs <url-or-html> --shot before.png --json before.json` (or `--src <dir>` when there is no dev server; layout is then unmeasured). Read the PALETTE block (verdict KEEP/ADJUST/REPLACE, see references/color-match.md; `--no-palette` skips it) and the LAYOUT block. If the layout verdict is ARRANGE or REWORK, say up front in one line: "Values-only pass: positions and hierarchy will not change. Run /dashboardlify:arrange for layout." Then branch on the value verdict:
    - LEAVE: say the screen is already tight, suggest at most 3 refinements with exact values, stop.
    - TIGHTEN: continue.
    - REWORK: tell the user to run /dashboardlify:rework instead, unless they insist on continuing.
@@ -24,5 +24,5 @@ Procedure:
    8. motion: 120-220ms, no `transition: all`, no looping decoration
    9. copy: only if `--copy` is in $ARGUMENTS, following references/copy.md. Without the flag, copy and JSX stay untouched.
 3. Do not change JSX (except string literals under `--copy`), routes, props or behavior. Preserve all class names. Do not commit or stage.
-4. Verify: braces balance, files parse, build passes. Re-run the scan with `--compare before.json` (at most 3 renders in total) and run checklist.md.
-5. Report a table per file: before -> after counts (font sizes, radii, hex colors, off-scale spacing, uppercase rules, icon sizes), plus the scan delta table. If a file changed fewer than 5 values, say why. Include the Color brief and a "Cut candidates (not applied)" list per references/render-only.md; delete nothing. List pages and files NOT covered. Be honest if the change would be hard to see; if so say a /dashboardlify:rework is needed.
+4. Verify: braces balance, files parse, build passes. Re-run the scan with `--compare before.json --visible-change before.png` (at most 3 renders in total) and run checklist.md. Print the VISIBLE CHANGE verdict honestly. NOT VISIBLE (< 3%) is never "done": diagnose (override lost on specificity or import order, wrong files, dead CSS, or the issue is layout) and say so. SUBTLE (3-8%) is reported as subtle.
+5. Report a table per file: before -> after counts (font sizes, radii, hex colors, off-scale spacing, uppercase rules, icon sizes), plus the scan delta table. If a file changed fewer than 5 values, say why. Include the Color brief and a "Cut candidates (not applied)" list per references/render-only.md; delete nothing. Report both verdicts (value and LAYOUT) before and after, the visible-change percent, and a "Layout issues left" list (point to /dashboardlify:arrange or /dashboardlify:rework). List pages and files NOT covered. Be honest if the change would be hard to see; if so say a /dashboardlify:rework is needed.

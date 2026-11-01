@@ -97,3 +97,15 @@ Sidebar auto-collapses to 56 between 768 and 1024.
 | Align everything to the 4px scale | mixed gaps within one grid |
 | Cards in a row share equal height | nest cards inside cards |
 | Primary action top-right of header | primary action in 3 places |
+
+## Numeric targets for a home page
+
+CSS recipes for each live in [layout-recipes.md](layout-recipes.md).
+
+| Region | Target |
+|---|---|
+| Top bar | 48-64px |
+| Hero or banner | cap to 120-160px |
+| Order | KPI strip first (3-4 cards in one row) |
+| Below the strip | 2fr / 1fr split, primary region left |
+| First screen | >= 8 data items above the fold |

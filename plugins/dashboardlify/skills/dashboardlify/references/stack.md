@@ -1,7 +1,5 @@
 # Stack: libraries worth reaching for
 
-Source: "50 Free & Open-Source React UI Component Picks (2026)" list, filtered by this skill's rules. Peer ranges checked against npm (Oct 2026). Re-check before installing; licenses and peers change.
-
 Rule zero: if the project already has a component or lib that does the job, restyle it with tokens. Add a dependency only for a real gap (icons, charts, headless table, date picker).
 
 ## Use

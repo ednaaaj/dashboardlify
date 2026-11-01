@@ -34,6 +34,7 @@ const USAGE = `dashboardlify scan - quantify how sloppy a dashboard looks
 
 Usage:
   node scan.mjs <target...> [--json out.json] [--compare before.json] [--width 1440] [--dark] [--no-palette] [--combo calm|paper|brand]
+                   [--height 900] [--no-layout] [--shot first.png] [--visible-change before.png]
   node scan.mjs --src <dir> [--json out.json]
 
   <target>   http(s) URL or local .html file (needs Chrome/Chromium; set CHROME_PATH to override)
@@ -45,6 +46,12 @@ Usage:
                 (domain and three precomputed combos (calm, paper, brand) come from ../references/palettes/palettes.json;
                 the recommended one follows the page: tinted page -> paper, large coloured sidebar/header -> brand, else calm)
   --combo    print only one option's tokens (calm | paper | brand); in --json only that option
+  --height   viewport height in px (default 900); the first screen = width x height
+  --no-layout   skip the layout measurements (top bar, hero, equal-weight grid, icon tiles, placeholders, ...)
+  --shot     save a first-viewport PNG (several targets: name-1.png, name-2.png)
+  --visible-change <before.png>  after the scan, compare the first screen with before.png and say VISIBLE / SUBTLE / NOT VISIBLE
+                (never scaled: taller shots are cropped to the shared top area; different widths print INCOMPARABLE, exit 1)
+                (single target; pixels are compared inside Chrome, no dependencies)
   --src      static regex scan of a source folder (no browser)
 `;
 
@@ -343,6 +350,170 @@ function collect(withPal) {
   res.contrastWorst.sort((a, b) => a.ratio - b.ratio);
   res.contrastWorst = res.contrastWorst.slice(0, 5);
   return res;
+}
+
+// ---- Layout probe (runs inside the page, same evaluation as collect; must stay self-contained) ------
+// Measures what a value-only pass cannot fix: bar/hero height, equal-weight grids, icon tiles, empty widgets.
+function layoutProbe(VW, VH) {
+  const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  const alpha = (s) => { const m = (s || '').match(/rgba?\(([^)]+)\)/); if (!m) return 0; const p = m[1].split(/[\s,\/]+/).filter(Boolean); return p.length > 3 ? parseFloat(p[3]) : 1; };
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'HEAD', 'META', 'LINK', 'TITLE', 'NOSCRIPT', 'TEMPLATE']);
+  const items = [];
+  for (const el of document.querySelectorAll('body *')) {
+    if (SKIP.has(el.tagName)) continue;
+    if (el instanceof SVGElement && el.tagName.toLowerCase() !== 'svg') continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    items.push({ el, cs, r });
+  }
+  const byEl = new Map(items.map((i) => [i.el, i]));
+  const ownText = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').trim();
+  const headEls = items.filter((i) => ownText(i.el) && (/^H[1-6]$/.test(i.el.tagName) || (px(i.cs.fontSize) >= 14 && (parseInt(i.cs.fontWeight, 10) || 400) >= 500)));
+  const hasHeading = (el) => headEls.some((h) => el.contains(h.el));
+  const radius = (cs) => Math.max(...['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map((c) => px(cs['border' + c + 'Radius'])));
+  const L = { viewport: { w: VW, h: VH } };
+  const rgb = (s) => { const m = (s || '').match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+  const pageBg = [document.body, document.documentElement].map((e) => rgb(getComputedStyle(e).backgroundColor)).find((c) => c && c.a >= 0.9) || { r: 255, g: 255, b: 255, a: 1 };
+  const hasBorder = (cs) => ['Top', 'Right', 'Bottom', 'Left'].some((s) => px(cs['border' + s + 'Width']) > 0 && cs['border' + s + 'Style'] !== 'none');
+
+  // topbar: tallest short full-width element touching the top edge
+  let top = null;
+  for (const it of items) {
+    const { r } = it;
+    if (r.top <= 8 && r.top >= -1 && r.width >= VW * 0.6 && r.height <= VH * 0.25 && (!top || r.height > top.r.height)) top = it;
+  }
+  if (top) {
+    const logos = [...top.el.querySelectorAll('img,svg')].map((e) => e.getBoundingClientRect().height);
+    L.topbar = { height: Math.round(top.r.height), logoHeight: Math.round(Math.max(0, ...logos)) };
+  } else L.topbar = null;
+
+  // hero: banner (background image/gradient or large img) in the top 60%, without data inside
+  let hero = null;
+  for (const it of items) {
+    const { el, cs, r } = it;
+    if (r.top >= VH * 0.6 || r.bottom <= 0 || r.width < VW * 0.5 || (top && el === top.el)) continue;
+    if (r.height > VH * 0.5 && !(r.width > VW * 0.5 && r.top < VH * 0.3)) continue; // tall heroes only when wide and starting near the top
+    const bgi = cs.backgroundImage;
+    const hasBg = !!bgi && bgi !== 'none';
+    const bg = rgb(cs.backgroundColor);
+    const solid = !hasBg && bg && bg.a >= 0.9 && r.height <= VH * 0.75 && !hasBorder(cs) && !(bg.r >= 250 && bg.g >= 250 && bg.b >= 250)
+      && Math.max(Math.abs(bg.r - pageBg.r), Math.abs(bg.g - pageBg.g), Math.abs(bg.b - pageBg.b)) > 12 && hasHeading(el);
+    if (!hasBg && !solid && ![...el.querySelectorAll('img')].some((i) => i.getBoundingClientRect().width >= 240)) continue;
+    if (el.querySelector('table,tr,li,[role=row]')) continue;
+    const nums = items.filter((i) => el.contains(i.el) && /\d/.test(ownText(i.el)) && px(i.cs.fontSize) >= 20).length;
+    if (nums > 1) continue;
+    const area = r.width * (Math.min(r.bottom, VH) - Math.max(r.top, 0));
+    if (!hero || area > hero.area) hero = { area, height: Math.round(r.height) };
+  }
+  L.hero = hero && { height: hero.height, sharePct: Math.min(100, Math.round((1000 * hero.area) / (VW * VH)) / 10) };
+
+  // equal-weight grid
+  const within = (a) => (Math.max(...a) - Math.min(...a)) / Math.max(...a) <= 0.1;
+  let eq = null;
+  for (const it of items) {
+    if (!/grid|flex/.test(it.cs.display) || (/flex/.test(it.cs.display) && it.cs.flexWrap === 'nowrap')) continue;
+    const kids = [...it.el.children].map((c) => byEl.get(c)).filter(Boolean);
+    if (kids.length < 4 || !kids.every((k) => k.r.width >= 160 && k.r.height >= 100)) continue;
+    if (!within(kids.map((k) => k.r.width)) || !within(kids.map((k) => k.r.height)) || !kids.every((k) => hasHeading(k.el))) continue;
+    const columns = new Set(kids.map((k) => Math.round(k.r.left / 4))).size;
+    if (columns === kids.length) continue; // a single row of cards is a KPI strip, not a wall of equal cards
+    if (!eq || kids.length > eq.count) eq = { count: kids.length, columns };
+  }
+  L.equalWeight = eq;
+
+  // icon tiles: small square boxes (fill or rounded) around an icon, next to a heading
+  let tiles = 0;
+  for (const { el, cs, r } of items) {
+    if (r.width < 24 || r.width > 72 || r.height < 24 || r.height > 72 || Math.abs(r.width - r.height) > Math.max(4, r.width * 0.15)) continue;
+    if (!(alpha(cs.backgroundColor) >= 0.9 || radius(cs) >= 8) || !el.querySelector('svg,img,i') || !el.parentElement) continue;
+    const near = headEls.some((h) => h.el.parentElement && el.parentElement.contains(h.el) && !el.contains(h.el) && (h.r.left >= r.right - 2 || h.r.top >= r.bottom - 2));
+    if (near) tiles++;
+  }
+  L.iconTiles = { count: tiles };
+
+  // placeholders and truncation
+  const re = /^(-{1,3}|—|–|n\/a|N\/A|\.{3}|0 of 0)$/;
+  let ph = 0;
+  const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const cardLike = (el) => { const i = byEl.get(el); return i && i.r.width >= 160 && i.r.height >= 80 && (hasBorder(i.cs) || alpha(i.cs.backgroundColor) >= 0.5); };
+  for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+    const pe = n.parentElement;
+    if (!re.test(n.textContent.trim()) || !byEl.has(pe) || pe.closest('td,th,[role=cell],[role=gridcell]')) continue;
+    for (let a = pe; a && a !== document.body; a = a.parentElement) if (cardLike(a)) { ph++; break; }
+  }
+  L.placeholders = { count: ph };
+  let tr = 0;
+  for (const { el, cs } of items) {
+    if (el.closest('td,th,[role=cell],[role=gridcell]')) continue; // ellipsis in table cells is an intended pattern
+    const clamp = cs.webkitLineClamp && cs.webkitLineClamp !== 'none';
+    if ((cs.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1) || (clamp && el.scrollHeight > el.clientHeight + 1)) tr++;
+  }
+  L.truncated = { count: tr };
+
+  // data above the fold
+  let data = 0;
+  for (const { el, cs, r } of items) {
+    if (r.top < 0 || r.bottom > VH + 0.5) continue;
+    if (el.tagName === 'TR' || el.getAttribute('role') === 'row') { if (!(el.querySelector('th') && !el.querySelector('td'))) data++; }
+    else if (el.tagName === 'LI' && /\d/.test(el.textContent)) data++;
+    else if (/\d/.test(ownText(el)) && px(cs.fontSize) >= 20) data++;
+    else if ((el.tagName === 'svg' || el.tagName === 'CANVAS') && r.width >= 200 && r.height >= 100) data++;
+  }
+  const formControls = items.filter((i) => /^(INPUT|SELECT|TEXTAREA)$/.test(i.el.tagName) && i.r.top >= 0 && i.r.bottom <= VH + 0.5 && i.el.type !== 'hidden').length;
+  const anyNumeric = /\d/.test(document.body.innerText || '');
+  L.dataAboveFold = { count: data, formLike: data === 0 && (formControls >= 2 || !anyNumeric) };
+
+  // card padding, sidebar, content width
+  const pads = [];
+  for (const { cs, r } of items) {
+    if (r.width < 160 || r.height < 80 || r.height > VH * 0.8 || radius(cs) <= 0) continue;
+    const border = ['Top', 'Right', 'Bottom', 'Left'].some((s) => px(cs['border' + s + 'Width']) > 0 && cs['border' + s + 'Style'] !== 'none');
+    if (!border && alpha(cs.backgroundColor) < 0.5) continue;
+    pads.push(['Top', 'Right', 'Bottom', 'Left'].reduce((a, s) => a + px(cs['padding' + s]), 0) / 4);
+  }
+  pads.sort((a, b) => a - b);
+  L.cardPadding = { cards: pads.length, median: pads.length ? Math.round(10 * pads[Math.floor(pads.length / 2)]) / 10 : null };
+  const side = items.filter((i) => /fixed|sticky/.test(i.cs.position) && i.r.left <= 4 && i.r.height >= VH * 0.8 && i.r.width < VW * 0.5).sort((a, b) => b.r.width - a.r.width)[0];
+  L.sidebar = side ? { width: Math.round(side.r.width) } : null;
+  const main = document.querySelector('main,[role=main]');
+  L.content = main ? { width: Math.round(main.getBoundingClientRect().width) } : null;
+  return L;
+}
+
+// ---- Layout analysis: probe metrics -> issues, score, verdict ------------------
+const LAYOUT_WEIGHT = {
+  'topbar-height': 2, 'hero-height': 3, 'equal-weight-grid': 3, 'icon-tiles': 1, 'placeholder-widgets': 1,
+  'truncated-text': 1, 'data-above-fold': 3, 'card-padding': 1, 'sidebar-width': 1, 'content-width': 1,
+};
+const LAYOUT_RANK = { OK: 0, ARRANGE: 1, REWORK: 2 };
+const NEXT_TEXT = {
+  ARRANGE: 'values alone will not make this look different. Run /dashboardlify:arrange (CSS-only layout)',
+  REWORK: 'values alone will not make this look different. Run /dashboardlify:rework',
+};
+
+function analyzeLayout(L, vw) {
+  const issues = [];
+  const add = (id, detail, fix) => issues.push({ id, detail, weight: LAYOUT_WEIGHT[id], fix, recipe: id });
+  if (L.topbar && L.topbar.height > 64) add('topbar-height', `${L.topbar.height}px tall (want <= 64)${L.topbar.logoHeight > 40 ? `, logo ${L.topbar.logoHeight}px (want <= 40)` : ''}`, 'css');
+  if (L.hero && L.hero.sharePct >= 15) add('hero-height', `${L.hero.sharePct}% of the first screen (${L.hero.height}px tall), cap to 120-160px`, 'css');
+  if (L.equalWeight) add('equal-weight-grid', `${L.equalWeight.count} equal cards in ${L.equalWeight.columns} columns, no hierarchy`, 'css');
+  if (L.iconTiles.count >= 4) add('icon-tiles', `${L.iconTiles.count} icon tiles`, 'css');
+  if (L.placeholders.count >= 3) add('placeholder-widgets', `${L.placeholders.count} empty placeholder values`, 'jsx');
+  if (L.truncated.count >= 3) add('truncated-text', `${L.truncated.count} truncated texts`, 'css');
+  if (L.dataAboveFold.count < 8 && !L.dataAboveFold.formLike) add('data-above-fold', `${L.dataAboveFold.count} data items in the first screen (want >= 8)`, 'css+jsx');
+  if (L.cardPadding.median > 24) add('card-padding', `median card padding ${L.cardPadding.median}px (want <= 24)`, 'css');
+  if (L.sidebar && L.sidebar.width > 280) add('sidebar-width', `sidebar ${L.sidebar.width}px wide (want <= 280)`, 'css');
+  if (vw >= 1440 && L.content && L.content.width > 1440) add('content-width', `main content ${L.content.width}px wide (want <= 1440)`, 'css');
+  const score = issues.reduce((a, i) => a + i.weight, 0);
+  const jsxOnly = issues.filter((i) => i.fix === 'jsx');
+  const jsxAny = issues.filter((i) => i.weight >= 2 && (i.fix === 'jsx' || i.fix === 'css+jsx'));
+  const rework = (jsxOnly.some((i) => i.weight >= 2) && score >= 5) || (score >= 14 && jsxAny.length >= 2);
+  const verdict = rework ? 'REWORK' : score >= 3 ? 'ARRANGE' : 'OK';
+  const jsxIds = jsxOnly.map((i) => i.id);
+  const note = verdict === 'OK' && jsxIds.length ? `OK with notes: ${jsxIds.length} issue${jsxIds.length > 1 ? 's' : ''} need${jsxIds.length > 1 ? '' : 's'} JSX (rework)` : null;
+  return { verdict, score, issues, note, jsxIds, metrics: L };
 }
 
 // ---- Analysis: raw collector output -> metrics, rows, score ------------------
@@ -923,7 +1094,7 @@ async function launchChrome(chromePath) {
       try {
         const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
         const page = list.find((t) => t.type === 'page');
-        if (page) return { cdp: await connectCdp(page.webSocketDebuggerUrl), cleanup };
+        if (page) return { cdp: await connectCdp(page.webSocketDebuggerUrl), cleanup, port };
       } catch {}
       await sleep(250);
     }
@@ -936,7 +1107,7 @@ async function launchChrome(chromePath) {
 
 async function scanPage(cdp, url, opts) {
   await cdp.send('Page.enable');
-  await cdp.send('Emulation.setDeviceMetricsOverride', { width: opts.width, height: 900, deviceScaleFactor: 1, mobile: false });
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: opts.width, height: opts.height, deviceScaleFactor: 1, mobile: false });
   if (opts.dark) await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
   await cdp.send('Network.enable');
   const status = new Map(); // frameId -> HTTP status of its document
@@ -949,9 +1120,22 @@ async function scanPage(cdp, url, opts) {
   if (code >= 400) throw new Error(`${url} returned HTTP ${code}`);
   await cdp.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true });
   await sleep(500);
-  const r = await cdp.send('Runtime.evaluate', { expression: `(${collect.toString()})(${!opts.noPalette})`, returnByValue: true, awaitPromise: true });
+  const lay = opts.noLayout ? 'null' : `(${layoutProbe.toString()})(${opts.width}, ${opts.height})`;
+  const r = await cdp.send('Runtime.evaluate', { expression: `({ raw: (${collect.toString()})(${!opts.noPalette}), layout: ${lay} })`, returnByValue: true, awaitPromise: true });
   if (r.exceptionDetails) throw new Error('collector failed: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text));
-  return r.result.value;
+  const out = r.result.value;
+  if (opts.shot || opts.visibleChange) {
+    await cdp.send('Runtime.evaluate', { awaitPromise: true, expression: `(async () => {
+      const st = document.createElement('style');
+      st.textContent = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
+      document.head.appendChild(st);
+      const imgs = [...document.images].filter((i) => !i.complete).map((i) => new Promise((r) => { i.onload = i.onerror = r; }));
+      await Promise.race([Promise.all([document.fonts.ready, ...imgs]), new Promise((r) => setTimeout(r, 2000))]);
+    })()` });
+    await sleep(100);
+  }
+  if (opts.shot || opts.visibleChange) out.png = (await cdp.send('Page.captureScreenshot', { format: 'png' })).data;
+  return out;
 }
 
 const withTimeout = (p, ms, what) => Promise.race([
@@ -962,20 +1146,66 @@ function toUrl(t) {
   return /^https?:\/\//i.test(t) ? t : pathToFileURL(path.resolve(t)).href;
 }
 
+// Runs inside a blank Chrome tab: both PNGs become canvases, so Node never decodes an image.
+async function pixelDiff(aUrl, bUrl) {
+  const load = (u) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('cannot decode PNG')); i.src = u; });
+  const [a, b] = await Promise.all([load(aUrl), load(bUrl)]);
+  const dims = { before: `${a.width}x${a.height}`, after: `${b.width}x${b.height}` };
+  if (a.width !== b.width) return { incomparable: true, ...dims };
+  const w = a.width, h = Math.min(a.height, b.height); // never scale: crop both to the shared top-left area
+  const px = (i) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(i, 0, 0, w, h, 0, 0, w, h); return x.getImageData(0, 0, w, h).data; };
+  const da = px(a), db = px(b);
+  let changed = 0, sum = 0;
+  for (let i = 0; i < da.length; i += 4) {
+    const d0 = Math.abs(da[i] - db[i]), d1 = Math.abs(da[i + 1] - db[i + 1]), d2 = Math.abs(da[i + 2] - db[i + 2]);
+    if (Math.max(d0, d1, d2) > 24) changed++;
+    sum += d0 + d1 + d2;
+  }
+  const n = w * h;
+  return { percent: (100 * changed) / n, meanDelta: sum / (3 * n), cropped: a.height !== b.height, ...dims };
+}
+
+async function compareShots(port, beforeB64, afterB64) {
+  const tab = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
+  let cdp;
+  try {
+    cdp = await connectCdp(tab.webSocketDebuggerUrl);
+    const png = (b) => JSON.stringify('data:image/png;base64,' + b);
+    const r = await cdp.send('Runtime.evaluate', { expression: `(${pixelDiff.toString()})(${png(beforeB64)}, ${png(afterB64)})`, returnByValue: true, awaitPromise: true });
+    if (r.exceptionDetails) throw new Error('compare failed: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text));
+    const v = r.result.value;
+    if (v.incomparable) return { verdict: 'INCOMPARABLE', before: v.before, after: v.after };
+    const verdict = v.percent >= 8 ? 'VISIBLE' : v.percent >= 3 ? 'SUBTLE' : 'NOT VISIBLE';
+    return { percent: Math.round(v.percent * 10) / 10, verdict, meanDelta: Math.round(v.meanDelta * 10) / 10, cropped: v.cropped, before: v.before, after: v.after };
+  } finally {
+    try { cdp?.close(); } catch {}
+    try { await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`); } catch {}
+  }
+}
+
 async function runBrowser(targets, opts) {
   const chrome = findChrome();
   if (!chrome) {
     console.error('Chrome/Chromium not found. Install it or set CHROME_PATH. (--src <dir> mode works without a browser.)');
     process.exit(1);
   }
-  const { cdp, cleanup } = await launchChrome(chrome);
+  const { cdp, cleanup, port } = await launchChrome(chrome);
   const results = [];
   try {
-    for (const t of targets) {
+    for (const [idx, t] of targets.entries()) {
       try {
         if (!/^https?:\/\//i.test(t) && !existsSync(t)) throw new Error(`no such file: ${t}`);
-        const raw = await withTimeout(scanPage(cdp, toUrl(t), opts), TARGET_TIMEOUT_MS, t);
-        results.push({ target: t, ...analyze(raw) });
+        const { raw, layout, png } = await withTimeout(scanPage(cdp, toUrl(t), opts), TARGET_TIMEOUT_MS, t);
+        const res = { target: t, ...analyze(raw), layout: layout ? analyzeLayout(layout, opts.width) : null };
+        if (opts.shot) {
+          res.shot = targets.length > 1 ? opts.shot.replace(/(\.png)?$/i, `-${idx + 1}$1`) : opts.shot;
+          writeFileSync(res.shot, Buffer.from(png, 'base64'));
+        }
+        if (opts.visibleChange) {
+          try { res.visibleChange = await compareShots(port, readFileSync(opts.visibleChange).toString('base64'), png); }
+          catch (e) { res.visibleChangeError = e.message; }
+        }
+        results.push(res);
       } catch (e) {
         results.push({ target: t, error: e.message });
       }
@@ -1010,7 +1240,29 @@ function printTarget(r) {
     console.log('Worst contrast:');
     worst.forEach((w) => console.log(`  ${w.el} ${w.ratio}:1 fg ${w.fg} on ${w.bg}`));
   }
+  if (r.layout) printLayout(r.layout, r.verdict);
   if (r.palette) printPalette(r.palette);
+}
+
+function printLayout(l, valueVerdict) {
+  console.log(`\nLAYOUT ${l.note || l.verdict}  (score ${l.score})`);
+  l.issues.forEach((i) => console.log(`- ${i.id}: ${i.detail} -> fix ${i.fix} -> recipe: ${i.recipe}`));
+  if (!l.issues.length) console.log('- no layout issues');
+  if (l.verdict === 'ARRANGE' && l.jsxIds.length) console.log(`also needs JSX: ${l.jsxIds.join(', ')} (rework)`);
+  if (l.verdict === 'ARRANGE' && l.jsxIds.length) console.log('NEXT: /dashboardlify:arrange (CSS) then /dashboardlify:rework for the JSX-only issues');
+  else if (l.verdict === 'ARRANGE') console.log('NEXT: /dashboardlify:arrange (CSS-only layout pass)');
+  else if (l.jsxIds.length) console.log('NEXT: layout is fine; the JSX-only issues above need /dashboardlify:rework');
+  else if (LAYOUT_RANK[l.verdict] > VERDICT_RANK[valueVerdict]) console.log(`NEXT: ${NEXT_TEXT[l.verdict]}`);
+}
+
+const VISIBLE_TEXT = { VISIBLE: '(>=8%)', SUBTLE: '(3-8%)', 'NOT VISIBLE': '(<3%)' };
+function printVisibleChange(r) {
+  if (r.visibleChangeError) return console.error(`--visible-change: ${r.visibleChangeError}`);
+  const v = r.visibleChange;
+  if (v.verdict === 'INCOMPARABLE') return console.log(`\nVISIBLE CHANGE: INCOMPARABLE (before is ${v.before}, now is ${v.after}: re-run with the same --width/--height)`);
+  console.log(`\nVISIBLE CHANGE ${v.percent}% of the first screen changed: ${v.verdict} ${VISIBLE_TEXT[v.verdict]}  (mean delta ${v.meanDelta}/255)`);
+  if (v.cropped) console.log(`note: heights differ (before ${v.before}, after ${v.after}); compared the shared top area, nothing was scaled`);
+  if (v.verdict === 'NOT VISIBLE') console.log('This pass did not visibly change the screen. Check specificity/import order of the overrides, or run /dashboardlify:arrange / rework for layout.');
 }
 
 function printPalette(p) {
@@ -1062,10 +1314,16 @@ function aggregate(results) {
     verdict: pals.reduce((w, r) => (PAL_RANK[r.palette.verdict] > PAL_RANK[w] ? r.palette.verdict : w), 'KEEP'),
     perTarget: pals.map((r) => ({ target: r.target, verdict: r.palette.verdict })),
   } : null;
-  return { targets: ok.length, violations: V, score: headline.score, verdict, headline, palette };
+  const lays = ok.filter((r) => r.layout);
+  const layout = lays.length ? {
+    verdict: lays.reduce((w, r) => (LAYOUT_RANK[r.layout.verdict] > LAYOUT_RANK[w] ? r.layout.verdict : w), 'OK'),
+    score: lays.reduce((a, r) => a + r.layout.score, 0),
+    perTarget: lays.map((r) => ({ target: r.target, verdict: r.layout.verdict, score: r.layout.score })),
+  } : null;
+  return { targets: ok.length, violations: V, score: headline.score, verdict, headline, palette, layout };
 }
 
-function printCompare(before, after, targets, palAfter) {
+function printCompare(before, after, targets, palAfter, layAfter) {
   const b = before.aggregate?.headline || before.headline || {};
   const prev = (before.targets || []).filter((t) => !t.error).map((t) => t.target).sort().join('\n');
   if (prev !== [...targets].sort().join('\n')) console.log('\nWARNING: before and after cover different page sets; counts are summed over different pages.');
@@ -1075,6 +1333,8 @@ function printCompare(before, after, targets, palAfter) {
   // Decide on uncapped violations: the 0-100 score saturates and would hide progress.
   const bv = b.violations ?? b.score ?? after.violations;
   const d = after.violations - bv;
+  const lb = before.aggregate?.layout;
+  if (layAfter && lb) console.log(`\nLayout: ${lb.verdict} (score ${lb.score}) -> ${layAfter.verdict} (score ${layAfter.score})`);
   if (palAfter) console.log(`\nPalette: ${before.aggregate?.palette?.verdict ?? '-'} -> ${palAfter}`);
   console.log(`\nOverall: ${d < 0 ? 'IMPROVED' : d > 0 ? 'WORSE' : 'UNCHANGED'} (violations ${b.violations ?? '-'} -> ${after.violations}, score ${b.score ?? '-'} -> ${after.score})`);
 }
@@ -1157,7 +1417,7 @@ function printSource(r) {
 
 // ---- CLI --------------------------------------------------------------------
 function parseArgs(argv) {
-  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, json: null, compare: null, src: null, help: false };
+  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, height: 900, noLayout: false, shot: null, visibleChange: null, json: null, compare: null, src: null, help: false };
   const val = (i, flag) => {
     if (i + 1 >= argv.length) throw new Error(`${flag} needs a value`);
     return argv[i + 1];
@@ -1173,11 +1433,16 @@ function parseArgs(argv) {
     } else if (a === '--json') o.json = val(i++, a);
     else if (a === '--compare') o.compare = val(i++, a);
     else if (a === '--src') o.src = val(i++, a);
+    else if (a === '--no-layout') o.noLayout = true;
+    else if (a === '--shot') o.shot = val(i++, a);
+    else if (a === '--visible-change') o.visibleChange = val(i++, a);
+    else if (a === '--height') o.height = parseInt(val(i++, a), 10);
     else if (a === '--width') o.width = parseInt(val(i++, a), 10);
     else if (a.startsWith('--')) throw new Error(`unknown flag ${a}`);
     else o.targets.push(a);
   }
   if (!Number.isFinite(o.width) || o.width < 200) throw new Error('--width must be a number >= 200');
+  if (!Number.isFinite(o.height) || o.height < 200) throw new Error('--height must be a number >= 200');
   return o;
 }
 
@@ -1196,6 +1461,11 @@ async function main() {
     if (o.json) writeFileSync(o.json, JSON.stringify({ mode: 'source', ...r }, null, 2));
     return;
   }
+  if (o.visibleChange) {
+    if (o.targets.length !== 1) { console.error('--visible-change needs exactly one target'); process.exit(2); }
+    if (!existsSync(o.visibleChange)) { console.error(`--visible-change: no such file ${o.visibleChange}`); process.exit(2); }
+    if (o.shot && path.resolve(o.shot) === path.resolve(o.visibleChange)) { console.error('--shot and --visible-change point to the same file; the new shot would overwrite before.png. Use a different --shot path.'); process.exit(2); }
+  }
   const results = await runBrowser(o.targets, o);
   const errs = results.filter((r) => r.error);
   const oks = results.filter((r) => !r.error);
@@ -1203,15 +1473,18 @@ async function main() {
     errs.forEach((r) => console.error(`ERROR ${r.target}: ${r.error}`));
     process.exit(1);
   }
-  oks.forEach(printTarget);
+  oks.forEach((r) => { printTarget(r); if (r.shot) console.log(`\nScreenshot saved: ${r.shot}`); });
   const agg = aggregate(results);
   if (oks.length > 1) console.log(`\n== Aggregate (${agg.targets} targets) ==\nSCORE ${agg.score}  VERDICT ${agg.verdict}  (worst verdict; counts summed)`);
+  if (oks.length > 1 && agg.layout) console.log(`LAYOUT ${agg.layout.verdict}  (worst; score summed ${agg.layout.score}; ${agg.layout.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
   if (agg.palette) console.log(`PALETTE ${agg.palette.verdict}  (worst; ${agg.palette.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
-  if (o.json) writeFileSync(o.json, JSON.stringify({ mode: 'browser', width: o.width, dark: o.dark, targets: results, aggregate: agg }, null, 2));
+  if (o.json) writeFileSync(o.json, JSON.stringify({ mode: 'browser', width: o.width, dark: o.dark, targets: results, aggregate: agg, ...(oks[0].visibleChange ? { visibleChange: oks[0].visibleChange } : {}) }, null, 2));
   if (o.compare) {
-    try { printCompare(JSON.parse(readFileSync(o.compare, 'utf8')), agg.headline, oks.map((r) => r.target), agg.palette?.verdict); }
+    try { printCompare(JSON.parse(readFileSync(o.compare, 'utf8')), agg.headline, oks.map((r) => r.target), agg.palette?.verdict, agg.layout); }
     catch (e) { console.error(`--compare: ${e.message}`); process.exit(2); }
   }
+  if (o.visibleChange) printVisibleChange(oks[0]);
+  if (oks.some((r) => r.visibleChangeError || r.visibleChange?.verdict === 'INCOMPARABLE')) process.exitCode = 1;
   if (errs.length) {
     console.error('\nErrors:');
     errs.forEach((r) => console.error(`  ${r.target}: ${r.error}`));

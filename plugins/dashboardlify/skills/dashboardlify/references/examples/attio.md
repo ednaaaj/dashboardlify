@@ -1,5 +1,4 @@
 # Attio (CRM)
-Sources: attio.com public marketing site compiled CSS. App UI not reachable. Confidence: hex/fonts = MEASURED (marketing only, frequency-ranked); all app layout = unknown/ESTIMATED. Mostly ESTIMATED overall.
 
 ## Shell
 - Sidebar width, topbar height, padding, max-width: unknown.

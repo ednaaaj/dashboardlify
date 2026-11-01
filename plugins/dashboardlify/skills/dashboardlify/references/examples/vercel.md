@@ -1,5 +1,4 @@
 # Vercel (Geist)
-Sources: vercel.com/geist/* docs + shipped CSS (MEASURED from published stylesheet; PUBLISHED docs). Dashboard shell dims: unknown.
 
 ## Shell (unknown)
 Sidebar width, topbar height, page padding, content max-width: unknown. Geist docs describe a grid-heavy layout (PUBLISHED, no numbers captured).

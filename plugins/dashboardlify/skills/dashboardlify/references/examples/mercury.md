@@ -1,5 +1,4 @@
 # Mercury (banking dashboard)
-Sources: mercury.com public marketing site, compiled CSS (fonts, a few hex values, radius vars). Logged-in app not reachable. Confidence: marketing fonts/hex = MEASURED (marketing site only); app layout = unknown/ESTIMATED. Mostly ESTIMATED overall.
 
 ## Shell
 - Sidebar width, topbar height, page padding, max-width: unknown (app not public).

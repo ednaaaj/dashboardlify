@@ -1,5 +1,4 @@
 # shadcn/ui (dashboard-01 block, new-york-v4)
-Sources: shadcn-ui/ui repo (apps/v4 globals.css, ui/*.tsx, blocks/dashboard-01). Confidence: PUBLISHED (source code) unless noted.
 
 ## Shell (PUBLISHED)
 - Sidebar: 18rem (72 spacing units) in dashboard-01; component default 16rem; icon-collapsed 3rem. Variant `inset` (sidebar floats on a muted bg, content in rounded inset card).

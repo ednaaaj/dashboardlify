@@ -1,6 +1,6 @@
 ---
 name: dashboardlify
-description: Build, tighten and rework dashboards, admin panels, analytics views, back-office screens, data tables and settings pages with numeric tokens for spacing, type, radius, colour, shadow and motion. Use when building, restructuring, reviewing or polishing any of these, when a screen "looks generic", "AI-made" or sloppy, or when asked to tighten it, tidy it up, make it look designed, show a before/after, transform it, or convert data to charts. Measures first, matches colour to the product, renders only what earns its place, then edits.
+description: Build, tighten, arrange and rework dashboards, admin panels, analytics views, back-office screens, data tables and settings pages with numeric tokens for spacing, type, radius, colour, shadow and motion. Use when building, restructuring, rearranging the layout of, reviewing or polishing any of these, when a screen "looks generic", "messy" or sloppy, when a tidy-up changed nothing visible, or when asked to tighten, arrange, reposition, make it look designed, show a before/after or convert data to charts. Measures first, proves the change is visible, then edits.
 ---
 
 # dashboardlify
@@ -14,18 +14,23 @@ Numeric, token-driven dashboard design. Every size, color, radius, shadow and du
 | A: BUILD | New dashboard | Whole screen from tokens |
 | B: TIGHTEN | Existing dashboard | Styling only (CSS, no JSX/behavior change). Whole app by default, changes must be visible |
 | C: REWORK | Existing dashboard | Structure, hierarchy, charts, compression. May change JSX. Needs user approval of a brief before any code edit |
+| D: ARRANGE | Existing dashboard | Layout via CSS only: shell size, hero height, card grid, order, padding, icon tiles. No JSX. Recipes in [layout-recipes.md](references/layout-recipes.md) |
 
-Choosing: "tighten / tidy up / polish / tokens" -> B. "rework / restructure / transform / change the layout / make it better" -> C. Unclear -> run the scan and let the verdict decide, else ask once.
+Choosing: "tighten / tidy up / polish / tokens" -> B. "move / position / layout / looks messy / still the same" -> D. "rework / restructure / transform / make it better" -> C. If D reports issues that only JSX can fix, continue in C. Unclear -> run the scan and let the verdict decide, else ask once.
 
 ## Triage first
 
-Before editing an existing screen, measure it: `node <skill dir>/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n]`. Use `--src <dir>` for a source-only estimate when nothing can be rendered. Needs Node 22 and Chrome, no installs.
+Before editing an existing screen, measure it: `node <skill dir>/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout] [--combo calm|paper|brand]`. `--combo` picks the colour combo reported in the PALETTE block (calm: dense data, paper: warm or consumer, brand: brand-heavy). Use `--src <dir>` for a source-only estimate when nothing can be rendered. Needs Node 22 and Chrome, no installs.
 
 | Score | Verdict | Action |
 |---|---|---|
 | < 8 | LEAVE | Say it is already tight; offer at most 3 refinements with exact values. Never change a good screen just to change it |
 | 8-35 | TIGHTEN | Mode B |
 | > 35 | REWORK | Mode C |
+
+The scan gives two verdicts. The value verdict (table above) measures sizes, colours, radii and spacing. The LAYOUT verdict measures position and hierarchy: top bar and hero height, equal-weight cards, icon tiles, placeholder widgets, truncated text, data above the fold. OK = score under 3, or only low-weight JSX notes. ARRANGE = score 3 or more and fixable by CSS, even if some JSX-only notes remain. REWORK = JSX-only high-weight issues dominate (score 14+ with 2 or more JSX issues, or score 5+ with a weight 2+ JSX-only issue). TIGHTEN alone will not change positions or hierarchy. When the layout verdict is worse than the value verdict, the scan's NEXT line points to Mode D (ARRANGE) or C (REWORK).
+
+Visible-change gate: every TIGHTEN or ARRANGE run saves a before screenshot (`--shot before.png`) and ends with `--visible-change before.png`. VISIBLE (>= 8% of the first screen changed) is success. SUBTLE (3-8%) is reported as subtle. Under 3% say "not visible" and never claim success; INCOMPARABLE (screenshots of different width, exit 1; same width with different height is cropped) is not success either. `--shot` and `--visible-change` must be different paths (exit 2 if equal); diagnose: override lost on specificity or import order, wrong files, dead CSS, or the problem is layout and not values.
 
 The scan output is evidence, not a ruling. When the verdict surprises you (a tiny page scoring high, a messy one scoring low), say so and explain before acting.
 
@@ -65,26 +70,27 @@ In soft, cards may use radius up to 16 and controls may be pill-shaped. Every ot
 
 ## Reading order
 
-1. [scripts/scan.mjs](scripts/scan.mjs) - measures a rendered page or a source dir, prints a verdict and the PALETTE block. B, C
+1. [scripts/scan.mjs](scripts/scan.mjs) - measures a rendered page or a source dir, prints a verdict, the PALETTE and LAYOUT blocks. B, C, D
 2. [references/tokens.md](references/tokens.md) - scales (space, type, radius, shadow, motion). All modes
-3. [references/layout.md](references/layout.md) - shell, grid, page widths. A, C
-4. [references/density.md](references/density.md) - compact / default / comfortable. A, C
-5. [references/color.md](references/color.md) - neutral ramp, one accent, status colors. All modes
-6. [references/color-match.md](references/color-match.md) - palette verdict KEEP/ADJUST/REPLACE, Color brief. All modes
-7. [references/palettes.md](references/palettes.md) - curated colour scales, domain defaults, tokens, contrast-safe fills, chart sets, zones and combos (generated table: [references/palettes/combos.md](references/palettes/combos.md)). All modes
-8. [references/render-only.md](references/render-only.md) - which regions earn a place, caps, cut list. A, C (B lists cut candidates only)
-9. [references/components.md](references/components.md) - cards, tables, forms, charts, states, detail rules. All modes
-10. [references/motion.md](references/motion.md) - allowed transitions. All modes
-11. [references/tokens.css](references/tokens.css) - copy these variables, do not retype values. All modes
-12. [references/anti-slop.md](references/anti-slop.md) - patterns to avoid + fix. All modes
-13. [references/copy.md](references/copy.md) - opt-in copy pass (`--copy`). B
-14. [references/redesign.md](references/redesign.md) - the full rework procedure. C
-15. [references/measure.md](references/measure.md) - measuring the existing UI by hand. C
-16. [references/metric-to-visual.md](references/metric-to-visual.md) - which visual fits which metric. A, C
-17. [references/patterns.md](references/patterns.md) - proven dashboard patterns. A, C
-18. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn. Pick 1-2 closest to the product
-19. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
-20. [checklist.md](checklist.md) - verify before done. All modes
+3. [references/layout.md](references/layout.md) - shell, grid, page widths. A, C, D
+4. [references/layout-recipes.md](references/layout-recipes.md) - CSS fixes per LAYOUT issue, hierarchy checklist. D, C
+5. [references/density.md](references/density.md) - compact / default / comfortable. A, C
+6. [references/color.md](references/color.md) - neutral ramp, one accent, status colors. All modes
+7. [references/color-match.md](references/color-match.md) - palette verdict KEEP/ADJUST/REPLACE, Color brief. All modes
+8. [references/palettes.md](references/palettes.md) - curated colour scales, domain defaults, tokens, contrast-safe fills, chart sets, zones and combos (generated table: [references/palettes/combos.md](references/palettes/combos.md)). All modes
+9. [references/render-only.md](references/render-only.md) - which regions earn a place, caps, cut list. A, C (B lists cut candidates only)
+10. [references/components.md](references/components.md) - cards, tables, forms, charts, states, detail rules. All modes
+11. [references/motion.md](references/motion.md) - allowed transitions. All modes
+12. [references/tokens.css](references/tokens.css) - copy these variables, do not retype values. All modes
+13. [references/anti-slop.md](references/anti-slop.md) - patterns to avoid + fix. All modes
+14. [references/copy.md](references/copy.md) - opt-in copy pass (`--copy`). B
+15. [references/redesign.md](references/redesign.md) - the full rework procedure. C
+16. [references/measure.md](references/measure.md) - measuring the existing UI by hand. C
+17. [references/metric-to-visual.md](references/metric-to-visual.md) - which visual fits which metric. A, C
+18. [references/patterns.md](references/patterns.md) - proven dashboard patterns. A, C
+19. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn. Pick 1-2 closest to the product
+20. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
+21. [checklist.md](checklist.md) - verify before done. All modes
 
 ## Hard rules
 
@@ -152,6 +158,18 @@ Source greps for the passes (exclude `references/tokens.css`). Allowed exception
 - type: `text-(4xl|5xl|6xl)`, `font-(black|extrabold)`
 
 List violations as `file:line | found | token replacement`. Replace one rule at a time, smallest diff. Fix missing states and contrast (< 4.5:1) found along the way. Confirm zero hits and no behavior change (props, handlers, data untouched).
+
+## Mode D: ARRANGE (existing dashboard, layout via CSS)
+
+Full procedure: [commands/arrange.md](../../commands/arrange.md). Summary:
+1. Scan with `--shot before.png --json before.json`; read the LAYOUT block.
+2. Map each issue id to its recipe in [layout-recipes.md](references/layout-recipes.md).
+3. Find the real selectors (grid or flex parent of the cards, hero, top bar, sidebar). Issues blocked by wrapper divs, inline styles or utility classes are marked "needs JSX -> Mode C".
+4. Apply in order: shell, hero cap (120-160px), card grid reflow, card padding, icon tiles, truncation. On legacy stacks raise specificity or use a late-imported bridge file; no `!important` unless the original uses it.
+5. Re-scan with `--compare before.json --visible-change before.png`. Must reach VISIBLE (>= 8%) or the report says why not.
+6. Report per issue before/after numbers, files and selectors, issues left for JSX, screenshot paths.
+
+No JSX, props, routes or data changes. Class names and text stay. DOM order stays the reading order. Single-column fallback under 900px. Dark mode intact.
 
 ## Mode C: REWORK (existing dashboard, structure may change)
 

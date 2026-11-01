@@ -1,5 +1,4 @@
 # Supabase (Studio + shared UI package)
-Sources: github.com/supabase/supabase master: packages/ui theme CSS, shadcn ui table/button/input/card, ProjectLayout (PUBLISHED, from open source).
 
 ## Shell
 Sidebar: ProjectLayout resizable panel defaultSize/minSize 256, maxSize 512 when resizable (PUBLISHED, unit assumed px; unverified). Content min-w 600 at xl. Studio root is h-screen w-screen flex-col, main scrolls (PUBLISHED). Topbar height, page padding, max-width: unknown.

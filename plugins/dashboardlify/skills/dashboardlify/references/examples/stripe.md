@@ -1,5 +1,4 @@
 # Stripe
-Sources: docs.stripe.com/stripe-apps/design tokens (PUBLISHED, hex exact); Dashboard shell dims: unknown (logged-in). Space/radius/type: unknown (not captured).
 
 ## Shell (unknown)
 Sidebar width, topbar height, page padding, max-width: unknown.
