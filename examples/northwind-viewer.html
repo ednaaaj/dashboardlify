@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Northwind Supply Viewer</title>
+<style>*{box-sizing:border-box}body{margin:0;font:14px/20px system-ui,sans-serif;color:#1f2933;background:#f4f6f8}
+.app{width:1280px;margin:0 auto;display:flex;min-height:720px}
+nav{width:216px;padding:24px 16px;background:#fff;border-right:1px solid #dde3ea}
+nav b{display:block;margin-bottom:16px;font-size:16px}nav a{display:block;padding:8px 12px;margin-bottom:4px;border-radius:4px;color:#1f2933;text-decoration:none}
+nav a.on{background:#e6f0ff;color:#1a56db}
+main{flex:1;padding:24px}h1{margin:0 0 24px;font-size:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:#fff;border:1px solid #dde3ea;border-radius:8px;padding:16px}
+.card h2{margin:0 0 12px;font-size:16px}
+table{width:100%;border-collapse:collapse}th,td{padding:4px 8px;text-align:left;border-bottom:1px solid #eef1f5}
+th{color:#52606d;font-weight:600}td+td,th+th{text-align:right}
+ul{margin:0;padding:0;list-style:none}li{display:flex;justify-content:space-between;padding:4px 0}
+.accent{color:#1a56db}.muted{color:#52606d}
+</style></head><body><div class="app">
+<nav><b class="accent">Northwind Supply</b><a class="on" href="#">Overview</a><a href="#">Orders</a></nav>
+<main><h1>My overview</h1>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px"><section class="card"><div class="muted">Open orders</div><div style="font-size:32px;line-height:40px;font-weight:700" class="accent">42</div></section><section class="card"><div class="muted">Shipped this week</div><div style="font-size:32px;line-height:40px;font-weight:700" class="accent">118</div></section><section class="card"><div class="muted">Delivered</div><div style="font-size:32px;line-height:40px;font-weight:700" class="accent">960</div></section></div>
+<div class="grid"><section class="card"><h2>Orders per week</h2>
+<svg width="320" height="180" viewBox="0 0 320 180" role="img" aria-label="Orders per week"><polyline fill="none" stroke="#1a56db" stroke-width="2" points="8,150 60,120 112,130 164,80 216,90 268,40 312,30"/><line x1="8" y1="170" x2="312" y2="170" stroke="#dde3ea"/></svg></section>
+<section class="card"><h2>Returns</h2><p class="muted">No returns yet</p></section></div></main></div></body></html>

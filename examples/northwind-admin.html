@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Northwind Supply Admin</title>
+<style>*{box-sizing:border-box}body{margin:0;font:14px/20px system-ui,sans-serif;color:#1f2933;background:#f4f6f8}
+.app{width:1280px;margin:0 auto;display:flex;min-height:720px}
+nav{width:216px;padding:24px 16px;background:#fff;border-right:1px solid #dde3ea}
+nav b{display:block;margin-bottom:16px;font-size:16px}nav a{display:block;padding:8px 12px;margin-bottom:4px;border-radius:4px;color:#1f2933;text-decoration:none}
+nav a.on{background:#e6f0ff;color:#1a56db}
+main{flex:1;padding:24px}h1{margin:0 0 24px;font-size:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:#fff;border:1px solid #dde3ea;border-radius:8px;padding:16px}
+.card h2{margin:0 0 12px;font-size:16px}
+table{width:100%;border-collapse:collapse}th,td{padding:4px 8px;text-align:left;border-bottom:1px solid #eef1f5}
+th{color:#52606d;font-weight:600}td+td,th+th{text-align:right}
+ul{margin:0;padding:0;list-style:none}li{display:flex;justify-content:space-between;padding:4px 0}
+.accent{color:#1a56db}.muted{color:#52606d}
+</style></head><body><div class="app">
+<nav><b class="accent">Northwind Supply</b><a class="on" href="#">Overview</a><a href="#">Orders</a><a href="#" data-role="admin">Users</a><a href="#" data-role="admin">Reports</a><a href="#" data-role="admin">Settings</a></nav>
+<main><h1>Admin overview</h1><div class="grid">
+<section class="card"><h2>Monthly revenue</h2><table><thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Profit</th></tr></thead><tbody><tr><td>Jan</td><td>12000</td><td>4100</td><td>7900</td></tr><tr><td>Feb</td><td>12900</td><td>4310</td><td>8590</td></tr><tr><td>Mar</td><td>13800</td><td>4520</td><td>9280</td></tr><tr><td>Apr</td><td>14700</td><td>4730</td><td>9970</td></tr><tr><td>May</td><td>15600</td><td>4940</td><td>10660</td></tr><tr><td>Jun</td><td>16500</td><td>5150</td><td>11350</td></tr><tr><td>Jul</td><td>17400</td><td>5360</td><td>12040</td></tr><tr><td>Aug</td><td>18300</td><td>5570</td><td>12730</td></tr><tr><td>Sep</td><td>19200</td><td>5780</td><td>13420</td></tr><tr><td>Oct</td><td>20100</td><td>5990</td><td>14110</td></tr><tr><td>Nov</td><td>21000</td><td>6200</td><td>14800</td></tr><tr><td>Dec</td><td>21900</td><td>6410</td><td>15490</td></tr></tbody></table></section>
+<div style="display:grid;gap:16px;align-content:start">
+<section class="card"><h2>Summary</h2><table><thead><tr><th>Orders</th><th>Customers</th><th>Returns</th></tr></thead><tbody><tr><td>1284</td><td>412</td><td>37</td></tr></tbody></table></section>
+<section class="card"><h2>Order status</h2><ul><li><span>Pending</span><span>42</span></li><li><span>Packed</span><span>31</span></li><li><span>Shipped</span><span>118</span></li><li><span>Delivered</span><span>960</span></li><li><span>Returned</span><span>37</span></li><li><span>Cancelled</span><span>21</span></li><li><span>On hold</span><span>9</span></li></ul></section>
+<section class="card"><h2>Supplier portal</h2><p class="muted">Coming soon</p></section>
+</div></div></main></div></body></html>

@@ -34,3 +34,13 @@ node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs arranged-hom
 ```
 
 Then scan the copy again and open both in a browser to compare.
+
+Survey fixtures (components and roles):
+
+```sh
+node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs northwind-admin.html --inventory --no-palette
+node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs northwind-viewer.html --inventory --no-palette
+node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs --src northwind-src
+```
+
+The admin page prints `INVENTORY SWAP` with `table-timeseries-to-chart` (Monthly revenue), `table-few-to-kpi` (Summary), `counts-to-bar` (Order status) and `placeholder-widget` (Supplier portal). The viewer page prints `INVENTORY FIT`. The source folder prints `ROLES admin, manager, viewer | guards 2 | routes 4 (2 guarded)`: `/admin/users` and `/reports` are admin only, `/` and `/orders` are open.
