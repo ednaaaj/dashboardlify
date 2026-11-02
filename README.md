@@ -6,6 +6,21 @@
 
 Text files only. No binaries, no build step, no dependencies. The optional scan needs Node 22 and Chrome, nothing to install.
 
+## Quick start
+
+```
+/plugin marketplace add ednaaaj/dashboardlify
+/plugin install dashboardlify@dashboardlify
+```
+
+Restart Claude Code, open your project, then:
+
+```
+/dashboardlify:improve http://localhost:3000
+```
+
+One command. It measures the page, decides what it needs (colors, layout, components), applies it, and reports how much of the first screen visibly changed. A rework step always waits for your approval before editing code.
+
 ## What it fixes
 
 Typical "AI dashboard" problems it targets:
@@ -41,7 +56,18 @@ Three densities: compact (tables, ops), default (mixed), comfortable (settings).
 /plugin install dashboardlify@dashboardlify
 ```
 
-Update later with `/plugin`. Slash commands need the plugin.
+Slash commands need the plugin.
+
+**Update**
+
+```
+/plugin marketplace update dashboardlify
+/plugin update dashboardlify@dashboardlify
+```
+
+Then restart Claude Code. If the version does not change, reinstall: `/plugin uninstall dashboardlify@dashboardlify`, `/plugin marketplace remove dashboardlify`, then add and install again as above. `/plugin` shows the installed version.
+
+**Old copy showing instead?** If `/dashboardlify` still shows an old description and `/dashboardlify:improve` is missing, a hand-copied folder is shadowing the plugin. Remove it: `rm -rf ~/.claude/skills/dashboardlify` (and `<project>/.claude/skills/dashboardlify` if you copied it per project), then install the plugin.
 
 ### Any agent (skills CLI)
 
@@ -168,6 +194,8 @@ The first prints `LAYOUT ARRANGE` (score 15) with its issue list, plus a note `a
 ## How to use
 
 Open Claude Code in your project and ask in plain words. The skill triggers on dashboards, admin panels, analytics views, data tables and settings pages. You can also call it directly with `/dashboardlify`.
+
+Not sure which mode? Run `/dashboardlify:improve <url>` and let the scan choose.
 
 | You say | Mode |
 |---|---|
