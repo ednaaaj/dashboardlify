@@ -111,6 +111,8 @@ node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs <url|file.html>
 node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs --src <dir>   # source-only estimate
 ```
 
+Add `--inventory` to also list what each page shows and whether each component suits its data (`INVENTORY FIT|SWAP`), `--storage-state <file>` to scan a logged-in role with a saved state file (values are never printed), and `--block <pattern>` to force an error or empty state. `--src` also prints a ROLES block with the roles, guards and routes it finds.
+
 Needs Node 22 and Chrome. No installs. `--combo calm|paper|brand` picks the colour combo the PALETTE block reports (calm for dense data, paper for warm or consumer products, brand for brand-heavy ones). It counts the things that make a screen look generated: distinct font sizes, radii and colours, off-scale spacing, shadows, gradients, uppercase text, mixed icon sizes, low-contrast text, and long or looping motion.
 
 | Score | Verdict | Meaning |
@@ -129,6 +131,16 @@ Example delta after a tighten run (illustrative numbers):
 | Off-scale spacing | 38 | 0 |
 | Shadows | 9 | 1 |
 | Score | 52 | 6 |
+
+## Components, roles and scenarios
+
+`/dashboardlify:improve` does not stop at the page you point at. Step 0 surveys the app:
+
+- **Components.** The scan lists tables, charts, KPI cards, lists, forms, empty states and placeholder widgets, and checks each against its data: a 12-row monthly table becomes a trend chart, a one-row table of three numbers becomes KPI cards, seven status counts become a sorted bar list, a "Coming soon" card is filled or cut. Rules: `references/metric-to-visual.md`, "Component fit".
+- **Roles.** `--src` finds roles (admin, manager, viewer...), guards and routes in the source and marks which routes are guarded.
+- **Scenarios.** It builds a pages x roles x states grid (default, empty, loading, error, long data), measures every cell it can reach, and reports each cell as covered or not covered, with the reason. Logged-in roles need a test account or a state file you keep outside the repo; credentials are never stored or printed. Procedure: `references/survey.md`.
+
+The detection is heuristic. Scan output is evidence, not a verdict: the run labels false positives.
 
 ## Why did nothing change?
 

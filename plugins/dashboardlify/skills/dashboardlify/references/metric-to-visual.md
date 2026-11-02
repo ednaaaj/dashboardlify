@@ -59,3 +59,18 @@ Pick the visual from the data shape, not from taste. Colors: `--chart-1..6` cate
 9. Needs history but we only have a snapshot? -> progress bar or delta pill
 10. Still unsure?                         -> table with inline bars
 ```
+
+## Component fit (scan rules)
+
+`scan.mjs --inventory` checks what each component is against the table above. A rule firing makes the verdict `INVENTORY SWAP`; the work is a component swap (Mode C, approved brief). Heuristic: confirm each hit before swapping (see [survey.md](survey.md)).
+
+| Rule id | Fires when | Suggest | Matching row |
+|---|---|---|---|
+| table-timeseries-to-chart | Table with 6+ data rows, 80%+ of first-column cells are dates or periods, 50%+ of other cells numeric | Line or area chart | Trend over time |
+| table-few-to-kpi | Table with 4 or fewer numeric cells in total and (2 or fewer rows, or 4 or fewer rows with 2 or fewer columns) | KPI cards | Single number, no context |
+| counts-to-bar | List or table with 5+ "label + number" items and no chart in the same card | Status-like labels: segmented or stacked bar when 6 or fewer items, else sorted bar list | Part-to-whole, <=5 parts / >5 parts |
+| chart-undersized | Chart under 280x160 and taller than 48px (48px or less is a sparkline, exempt) | Grow to 280x160 minimum | Min size |
+| placeholder-widget | Card with "Coming soon", "Lorem", "TODO", or only "--" or "N/A" | Fill it or cut it ([render-only.md](render-only.md)) | none |
+| map-check | A map is present | Table with flags unless location drives a decision | Geographic |
+
+`map-check` is advisory and does not change the verdict.

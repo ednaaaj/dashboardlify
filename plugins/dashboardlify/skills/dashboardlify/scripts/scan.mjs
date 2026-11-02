@@ -20,6 +20,16 @@ const ROW_BAD_POINTS = 5; // a metric with >= this many points is "bad", 1..4 is
 const SRC_LEAVE_BELOW = 4; // source estimate: hits per 1000 lines
 const SRC_REWORK_ABOVE = 20;
 const TARGET_TIMEOUT_MS = 40_000;
+// Inventory fit rules (--inventory). Tune against examples/northwind-*.html.
+const INV_TS_MIN_ROWS = 6; // table-timeseries-to-chart: data rows
+const INV_TS_DATE_SHARE = 0.8; // ... share of first-column cells that are dates/periods
+const INV_TS_NUM_SHARE = 0.5; // ... share of other cells that are numeric
+const INV_KPI_MAX_NUMS = 4; // table-few-to-kpi: numeric cells in the whole table
+const INV_COUNTS_MIN_ITEMS = 5; // counts-to-bar: "label + number" items
+const INV_BAR_MAX_ITEMS = 6; // <= this many status-like items -> segmented bar, else sorted bar list
+const INV_CHART_MIN_W = 280; // chart-undersized
+const INV_CHART_MIN_H = 160;
+const INV_SPARK_MAX_H = 48; // charts this short are sparklines: exempt
 
 const FONT_SCALE = [12, 13, 14, 16, 20, 24, 32];
 const WEIGHT_OK = [400, 500, 600];
@@ -35,6 +45,7 @@ const USAGE = `dashboardlify scan - quantify how sloppy a dashboard looks
 Usage:
   node scan.mjs <target...> [--json out.json] [--compare before.json] [--width 1440] [--dark] [--no-palette] [--combo calm|paper|brand]
                    [--height 900] [--no-layout] [--shot first.png] [--visible-change before.png]
+                   [--inventory] [--storage-state state.json] [--block <url-pattern>]
   node scan.mjs --src <dir> [--json out.json]
 
   <target>   http(s) URL or local .html file (needs Chrome/Chromium; set CHROME_PATH to override)
@@ -52,7 +63,12 @@ Usage:
   --visible-change <before.png>  after the scan, compare the first screen with before.png and say VISIBLE / SUBTLE / NOT VISIBLE
                 (never scaled: taller shots are cropped to the shared top area; different widths print INCOMPARABLE, exit 1)
                 (single target; pixels are compared inside Chrome, no dependencies)
-  --src      static regex scan of a source folder (no browser)
+  --inventory   list the components on the page (tables, charts, KPIs, lists, forms, states) and say FIT or SWAP:
+                SWAP = a component shows its data in the wrong shape (table of a time series, 3-number table, counts as a list...)
+  --storage-state <file>  log in without a form: Playwright-style {cookies, origins[].localStorage} or a bare cookie array
+                (values are sent to the browser only; the scan prints counts, never values)
+  --block <pattern>  block matching requests (repeatable, '*' wildcard) so the page shows its error/empty state
+  --src      static regex scan of a source folder (no browser); also prints ROLES: role names, guards, routes (guarded or not)
 `;
 
 // ---- Collector (runs inside the page; must stay self-contained) ------------
@@ -482,6 +498,148 @@ function layoutProbe(VW, VH) {
   return L;
 }
 
+// ---- Inventory probe (--inventory; runs inside the page, self-contained) ------------------------
+// Lists what the page is made of so the shape of each component can be checked against its data.
+function inventoryProbe() {
+  const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  const alpha = (s) => { const m = (s || '').match(/rgba?\(([^)]+)\)/); if (!m) return 0; const p = m[1].split(/[\s,\/]+/).filter(Boolean); return p.length > 3 ? parseFloat(p[3]) : 1; };
+  const VW = window.innerWidth;
+  const MON = '(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?';
+  // ponytail: English month names and numeric formats only; add locales if a real dashboard needs them
+  const DATE = new RegExp(`^(\\d{4}[-/]\\d{1,2}([-/]\\d{1,2})?|\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4}|${MON}\\s+\\d{1,2}(,?\\s*\\d{2,4})?|\\d{1,2}\\s+${MON}(\\s+\\d{2,4})?|${MON}(\\s*'?\\d{2,4})?|q[1-4]\\s*'?\\d{0,4}|w(eek)?\\s*\\d{1,2}|(mon|tue|wed|thu|fri|sat|sun)[a-z]*|(19|20)\\d{2})$`, 'i');
+  const NUM = /^[~+\-−–$€£¥(]*\d[\d,.\s]*\s*(%|[kKmMbB]|ms|s|pts?|x)?\)?$/;
+  const STATUS = /^(open|closed|pending|active|inactive|paid|unpaid|failed|success|error|done|new|in progress|draft|shipped|delivered|cancell?ed|refunded|resolved|overdue|late|approved|rejected|blocked|processing|completed|queued|running|stopped|warning|ok|healthy|on hold|returned)$/i;
+  const vis = (el) => { const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden') return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? r : null; };
+  const txt = (el) => (el.innerText ?? el.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const own = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').trim();
+  const tokens = (el) => (typeof el.className === 'string' ? el.className : el.getAttribute('class') || '').toLowerCase();
+  // card = nearest ancestor that looks like a container (border, fill, <article>/<section> or card-ish class)
+  const cardOf = (el) => {
+    for (let a = el.parentElement; a && a !== document.body && a.tagName !== 'MAIN'; a = a.parentElement) {
+      const r = a.getBoundingClientRect(), cs = getComputedStyle(a);
+      if (r.width < 140 || r.height < 60) continue;
+      const border = ['Top', 'Right', 'Bottom', 'Left'].some((s) => px(cs['border' + s + 'Width']) > 0 && cs['border' + s + 'Style'] !== 'none');
+      // ponytail: a plain white wrapper reads as a card when nothing nearer matches; the narrow-width guard only catches full-bleed ones
+      if (border || (alpha(cs.backgroundColor) >= 0.5 && r.width < VW * 0.9) || /^(ARTICLE|SECTION)$/.test(a.tagName) || /(^|[\s_-])(card|panel|widget|tile)([\s_-]|$)/.test(tokens(a))) return a;
+    }
+    return null;
+  };
+  const HEAD = 'h1,h2,h3,h4,h5,h6,legend,caption,[class*=title i],[class*=heading i],[class*=label i]';
+  const labelOf = (el, card) => {
+    const cap = el.querySelector?.('caption');
+    const aria = el.getAttribute('aria-label') || (el.getAttribute('aria-labelledby') && document.getElementById(el.getAttribute('aria-labelledby'))?.textContent);
+    let t = (cap && txt(cap)) || (aria || '').trim();
+    if (!t && card) for (const h of card.querySelectorAll(HEAD)) { if (!el.contains(h) && txt(h) && vis(h)) { t = txt(h); break; } }
+    return t.slice(0, 48);
+  };
+  const out = [];
+  const seen = new Set();
+  const push = (type, el, extra, card) => {
+    const r = el.getBoundingClientRect();
+    out.push({ type, label: labelOf(el, card === undefined ? cardOf(el) : card), w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top + window.scrollY), ...extra });
+  };
+  const topmost = (els) => els.filter((e) => !els.some((o) => o !== e && o.contains(e)));
+
+  // charts: canvas/svg that are big enough or named like a chart, plus chart-library wrappers
+  // ponytail: svg icons are skipped by size/name only; a decorative 200x100 svg would count as a chart
+  const chartSel = 'canvas,svg,[class*=recharts-wrapper],[class*=highcharts-container],.apexcharts-canvas,.js-plotly-plot,[role=img][aria-label*=chart i]';
+  const chartEls = topmost([...document.querySelectorAll(chartSel)].filter((e) => {
+    if (e.closest('button,a,th,nav,[role=button]') || (e.parentElement?.closest('svg') && e.tagName.toLowerCase() === 'svg')) return false;
+    const r = vis(e); if (!r) return false;
+    return (r.width >= 200 && r.height >= 100) || /chart|spark|graph/.test(tokens(e) + ' ' + (e.getAttribute('aria-label') || '').toLowerCase()) && r.width >= 40;
+  }));
+  const inChart = (e) => chartEls.some((c) => c.contains(e));
+  chartEls.forEach((e) => { seen.add(e); push('chart', e, {}); });
+
+  // tables
+  const tables = [...document.querySelectorAll('table,[role=table],[role=grid]')].filter((e) => vis(e) && !e.parentElement.closest('table,[role=table],[role=grid]'));
+  const cal = [];
+  tables.forEach((t) => {
+    const rowEls = [...t.querySelectorAll('tr,[role=row]')];
+    const cellsOf = (r) => [...r.children].filter((c) => /^(TD|TH)$/.test(c.tagName) || /^(cell|gridcell|columnheader|rowheader)$/.test(c.getAttribute('role') || ''));
+    const data = rowEls.map((r) => cellsOf(r)).filter((cs) => cs.length && !(cs.every((c) => c.tagName === 'TH' || /header/.test(c.getAttribute('role') || ''))));
+    const cols = Math.max(0, ...rowEls.map((r) => cellsOf(r).length));
+    const all = data.reduce((a, cs) => a + cs.length, 0);
+    if (cols === 7 && all >= 28 && all <= 42) { cal.push(t); return; }
+    const first = data.map((cs) => txt(cs[0]));
+    const rest = data.flatMap((cs) => cs.slice(1).map(txt)).filter(Boolean);
+    const numCells = data.flatMap((cs) => cs.map(txt)).filter((s) => NUM.test(s)).length;
+    const card = cardOf(t);
+    const items = cols <= 3 ? data.filter((cs) => cs.length > 1 && /[a-z]/i.test(txt(cs[0])) && !DATE.test(txt(cs[0])) && cs.slice(1).some((c) => NUM.test(txt(c)))).map((cs) => txt(cs[0])) : [];
+    push('table', t, {
+      rows: data.length, cols, numericCells: numCells,
+      numericShare: rest.length ? Math.round((100 * rest.filter((s) => NUM.test(s)).length) / rest.length) / 100 : 0,
+      dateFirstCol: first.length ? Math.round((100 * first.filter((s) => DATE.test(s)).length) / first.length) / 100 : 0,
+      items: items.length, statusLike: items.length ? Math.round((100 * items.filter((s) => STATUS.test(s)).length) / items.length) / 100 : 0,
+      chartInCard: !!card && chartEls.some((c) => card.contains(c)),
+    }, card);
+  });
+
+  // lists: 3+ items, not navigation
+  const lists = [...document.querySelectorAll('ul,ol,[role=list]')].filter((e) => vis(e) && !e.closest('nav,[role=navigation],table,[role=table],[role=menu],[role=tablist]') && !inChart(e));
+  topmost(lists).forEach((l) => {
+    const lis = [...l.querySelectorAll('li,[role=listitem]')].filter(vis);
+    if (lis.length < 3) return;
+    const parsed = lis.map((li) => { const t = txt(li); const m = t.match(/^([^\d]*[a-z][^\d]*?)\s*[:\-–·]?\s*(\d[\d,.]*\s*(%|[kKmM])?)$/i); return m ? m[1].trim() : null; }).filter(Boolean);
+    const card = cardOf(l);
+    push('list', l, {
+      items: parsed.length, listItems: lis.length, statusLike: parsed.length ? Math.round((100 * parsed.filter((s) => STATUS.test(s)).length) / parsed.length) / 100 : 0,
+      chartInCard: !!card && chartEls.some((c) => card.contains(c)),
+    }, card);
+  });
+
+  // forms
+  const forms = [...document.querySelectorAll('form')].filter(vis);
+  forms.forEach((f) => push('form', f, { fields: f.querySelectorAll('input:not([type=hidden]),select,textarea').length }));
+  // ponytail: loose controls outside any <form> count as one form when there are 3+; a toolbar of filters will match
+  const loose = [...document.querySelectorAll('input:not([type=hidden]),select,textarea')].filter((e) => vis(e) && !e.closest('form'));
+  if (loose.length >= 3) push('form', loose[0].parentElement, { fields: loose.length, loose: true });
+
+  // KPIs: one big number per card
+  const kpiCards = new Set();
+  for (const el of document.querySelectorAll('body *')) {
+    if (/^(SCRIPT|STYLE|H[1-6]|INPUT|SELECT|TEXTAREA|OPTION|BUTTON|A)$/.test(el.tagName) || el instanceof SVGElement) continue;
+    const t = own(el);
+    if (!t || t.length > 16 || !/\d/.test(t) || !NUM.test(t.replace(/\s/g, '')) || el.closest('table,[role=table],[role=grid],li,svg,canvas,nav,[role=navigation]') || inChart(el)) continue;
+    const r = vis(el); if (!r || px(getComputedStyle(el).fontSize) < 20) continue;
+    const card = cardOf(el);
+    if (!card || kpiCards.has(card) || card.querySelector('table,[role=table]')) continue;
+    kpiCards.add(card);
+    push('kpi', card, {}, card);
+    if (!out[out.length - 1].label) { // no heading element: first other short text in the card
+      const sib = [...card.querySelectorAll('*')].find((e) => e !== el && own(e) && own(e).length <= 40 && !NUM.test(own(e)) && vis(e));
+      if (sib) out[out.length - 1].label = own(sib).slice(0, 48);
+    }
+  }
+
+  // states and extras
+  const leafText = (re, max) => [...document.querySelectorAll('body *')].filter((e) => { if (!own(e) || own(e).length > max || /^(SCRIPT|STYLE)$/.test(e.tagName) || !vis(e)) return false; return re.test(own(e)); });
+  const dedupe = (type, els) => { const keys = new Map(); topmost(els).forEach((e) => { const c = cardOf(e) || e; if (!keys.has(c)) keys.set(c, e); }); keys.forEach((e, c) => { const r = vis(c); if (r) push(type, c, c === e ? {} : { label: labelOf(e, c) }, c); }); };
+  // ponytail: wording lists are English-only and short-text-only; upgrade by listing the product's own empty/error copy
+  dedupe('empty', leafText(/\b(no (data|results?|items?|records?|entries|orders?|activity|rows|matches|transactions|users|events)\b|nothing (here )?(yet|to show|to see)|nothing found|no .{1,30} (yet|found|available|to show))/i, 100));
+  dedupe('placeholder', leafText(/coming soon|lorem ipsum|\blorem\b|\bTODO\b/i, 120));
+  // card whose only content besides its heading is "--" / "N/A"
+  const phCards = new Set();
+  for (const el of document.querySelectorAll('body *')) {
+    if (!/^(-{1,3}|—|–|n\/a)$/i.test(own(el)) || el.closest('td,th,[role=cell],[role=gridcell]') || !vis(el)) continue;
+    const c = cardOf(el); if (!c || phCards.has(c)) continue;
+    const h = [...c.querySelectorAll(HEAD)].map(txt).join(' ');
+    if (txt(c).replace(h, '').replace(/[\s\-—–]|n\/a/gi, '') === '') { phCards.add(c); push('placeholder', c, { label: labelOf(el, c) }, c); }
+  }
+  const mapEls = [...document.querySelectorAll('.leaflet-container,.mapboxgl-map,.maplibregl-map,.gm-style,.ol-viewport,[class*="map-container"],[class*="map-view"],iframe[src*="maps"],iframe[src*="openstreetmap"]')].filter((e) => vis(e) && vis(e).width >= 100);
+  topmost(mapEls).forEach((e) => push('map', e, {}));
+  const calEls = topmost([...cal, ...document.querySelectorAll('[class*=calendar i],.fc,[class*=datepicker i]')].filter((e) => vis(e) && vis(e).width >= 180));
+  calEls.forEach((e) => push('calendar', e, {}));
+  [...document.querySelectorAll('body *')].forEach((e) => { // 7-column grids of 28-42 cells
+    if (calEls.some((c) => c.contains(e) || e.contains(c)) || getComputedStyle(e).display !== 'grid') return;
+    const n = e.children.length;
+    if (n >= 28 && n <= 42 && getComputedStyle(e).gridTemplateColumns.split(' ').length === 7 && vis(e)) push('calendar', e, {});
+  });
+  dedupe('loading', [...document.querySelectorAll('[class*=skeleton i],[class*=spinner i],[class*=shimmer i],[class*=loading i],[aria-busy=true]')].filter(vis));
+  dedupe('error', [...[...document.querySelectorAll('[role=alert]')].filter(vis), ...leafText(/failed to|went wrong|error loading|could not load|couldn.t load|unable to load|request failed/i, 120)]);
+  return { components: out };
+}
+
 // ---- Layout analysis: probe metrics -> issues, score, verdict ------------------
 const LAYOUT_WEIGHT = {
   'topbar-height': 2, 'hero-height': 3, 'equal-weight-grid': 3, 'icon-tiles': 1, 'placeholder-widgets': 1,
@@ -492,6 +650,38 @@ const NEXT_TEXT = {
   ARRANGE: 'values alone will not make this look different. Run /dashboardlify:arrange (CSS-only layout)',
   REWORK: 'values alone will not make this look different. Run /dashboardlify:rework',
 };
+
+// ---- Inventory analysis: components -> fit rules, verdict ---------------------------------------
+const INV_TYPES = ['table', 'chart', 'kpi', 'list', 'form', 'empty', 'placeholder', 'map', 'calendar', 'loading', 'error'];
+
+function analyzeInventory(raw) {
+  const comps = raw.components;
+  const counts = Object.fromEntries(INV_TYPES.map((t) => [t, 0]));
+  comps.forEach((c) => { counts[c.type]++; });
+  const fit = [];
+  const add = (rule, c, detail, suggest, ref = 'metric-to-visual.md') => fit.push({ rule, type: c.type, label: c.label || '', detail, suggest, ref });
+  for (const c of comps) {
+    if (c.type === 'table') {
+      if (c.rows >= INV_TS_MIN_ROWS && c.dateFirstCol >= INV_TS_DATE_SHARE && c.numericShare >= INV_TS_NUM_SHARE) {
+        add('table-timeseries-to-chart', c, `${c.rows} rows by date, ${Math.round(c.numericShare * 100)}% numeric`, 'line/area chart ("Trend over time")');
+      }
+      if (c.numericCells <= INV_KPI_MAX_NUMS && (c.rows <= 2 || (c.rows <= 4 && c.cols <= 2))) {
+        add('table-few-to-kpi', c, `${c.rows} rows, ${c.numericCells} number${c.numericCells === 1 ? '' : 's'}`, 'KPI cards ("Single number")');
+      }
+    }
+    if ((c.type === 'table' || c.type === 'list') && c.items >= INV_COUNTS_MIN_ITEMS && !c.chartInCard) {
+      const bar = c.statusLike >= 0.6 && c.items <= INV_BAR_MAX_ITEMS ? 'segmented/stacked bar' : 'sorted bar list';
+      add('counts-to-bar', c, `${c.items} label + number items, no chart beside them`, `${bar} ("Part-to-whole")`);
+    }
+    if (c.type === 'chart' && c.h > INV_SPARK_MAX_H && (c.w < INV_CHART_MIN_W || c.h < INV_CHART_MIN_H)) {
+      add('chart-undersized', c, `${c.w}x${c.h}px`, `min size ${INV_CHART_MIN_W}x${INV_CHART_MIN_H}`);
+    }
+    if (c.type === 'placeholder') add('placeholder-widget', c, 'placeholder text instead of data', 'fill it or cut it', 'render-only.md');
+    if (c.type === 'map') add('map-check', c, 'map present', 'table with flags unless location drives a decision');
+  }
+  const verdict = fit.some((f) => f.rule !== 'map-check') ? 'SWAP' : 'FIT';
+  return { verdict, counts, components: comps, fit };
+}
 
 function analyzeLayout(L, vw) {
   const issues = [];
@@ -1110,6 +1300,12 @@ async function scanPage(cdp, url, opts) {
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: opts.width, height: opts.height, deviceScaleFactor: 1, mobile: false });
   if (opts.dark) await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
   await cdp.send('Network.enable');
+  if (opts.block.length) await cdp.send('Network.setBlockedURLs', { urls: opts.block });
+  if (opts.auth) {
+    // values go to the browser only; nothing here is printed or written to --json
+    if (opts.auth.cookies.length) await cdp.send('Network.setCookies', { cookies: opts.auth.cookies });
+    if (opts.auth.origins.length) await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const O = ${JSON.stringify(opts.auth.origins)}.find((o) => o.origin === location.origin); if (O) for (const i of O.localStorage || []) try { localStorage.setItem(i.name, i.value); } catch {} })()` });
+  }
   const status = new Map(); // frameId -> HTTP status of its document
   cdp.on('Network.responseReceived', (p) => { if (p.type === 'Document' && !status.has(p.frameId)) status.set(p.frameId, p.response.status); });
   const loaded = cdp.once('Page.loadEventFired');
@@ -1121,7 +1317,8 @@ async function scanPage(cdp, url, opts) {
   await cdp.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true });
   await sleep(500);
   const lay = opts.noLayout ? 'null' : `(${layoutProbe.toString()})(${opts.width}, ${opts.height})`;
-  const r = await cdp.send('Runtime.evaluate', { expression: `({ raw: (${collect.toString()})(${!opts.noPalette}), layout: ${lay} })`, returnByValue: true, awaitPromise: true });
+  const inv = opts.inventory ? `(${inventoryProbe.toString()})()` : 'null';
+  const r = await cdp.send('Runtime.evaluate', { expression: `({ raw: (${collect.toString()})(${!opts.noPalette}), layout: ${lay}, inventory: ${inv} })`, returnByValue: true, awaitPromise: true });
   if (r.exceptionDetails) throw new Error('collector failed: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text));
   const out = r.result.value;
   if (opts.shot || opts.visibleChange) {
@@ -1195,8 +1392,9 @@ async function runBrowser(targets, opts) {
     for (const [idx, t] of targets.entries()) {
       try {
         if (!/^https?:\/\//i.test(t) && !existsSync(t)) throw new Error(`no such file: ${t}`);
-        const { raw, layout, png } = await withTimeout(scanPage(cdp, toUrl(t), opts), TARGET_TIMEOUT_MS, t);
+        const { raw, layout, inventory, png } = await withTimeout(scanPage(cdp, toUrl(t), opts), TARGET_TIMEOUT_MS, t);
         const res = { target: t, ...analyze(raw), layout: layout ? analyzeLayout(layout, opts.width) : null };
+        if (inventory) res.inventory = analyzeInventory(inventory);
         if (opts.shot) {
           res.shot = targets.length > 1 ? opts.shot.replace(/(\.png)?$/i, `-${idx + 1}$1`) : opts.shot;
           writeFileSync(res.shot, Buffer.from(png, 'base64'));
@@ -1215,6 +1413,23 @@ async function runBrowser(targets, opts) {
     await cleanup();
   }
   return results;
+}
+
+// Playwright-style state file (or a bare cookie array) -> CDP cookies + localStorage per origin.
+function loadAuth(file) {
+  let j;
+  try { j = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Error('not valid JSON'); } // fixed text: a parse error would quote the file contents
+  const list = Array.isArray(j) ? j : j.cookies || [];
+  const origins = Array.isArray(j) ? [] : (j.origins || []).filter((o) => o.origin && (o.localStorage || []).length);
+  const cookies = list.map((c) => {
+    const { expires, sameSite, ...rest } = c;
+    const out = { ...rest };
+    if (expires > 0) out.expires = expires; // -1 means session cookie: drop it
+    if (/^(Strict|Lax|None)$/.test(sameSite)) out.sameSite = sameSite;
+    if (!out.url && !out.domain) throw new Error('every cookie needs a url or domain');
+    return out;
+  });
+  return { cookies, origins, keys: origins.reduce((a, o) => a + o.localStorage.length, 0) };
 }
 
 // ---- Reporting --------------------------------------------------------------
@@ -1241,6 +1456,7 @@ function printTarget(r) {
     worst.forEach((w) => console.log(`  ${w.el} ${w.ratio}:1 fg ${w.fg} on ${w.bg}`));
   }
   if (r.layout) printLayout(r.layout, r.verdict);
+  if (r.inventory) printInventory(r.inventory);
   if (r.palette) printPalette(r.palette);
 }
 
@@ -1253,6 +1469,13 @@ function printLayout(l, valueVerdict) {
   else if (l.verdict === 'ARRANGE') console.log('NEXT: /dashboardlify:arrange (CSS-only layout pass)');
   else if (l.jsxIds.length) console.log('NEXT: layout is fine; the JSX-only issues above need /dashboardlify:rework');
   else if (LAYOUT_RANK[l.verdict] > VERDICT_RANK[valueVerdict]) console.log(`NEXT: ${NEXT_TEXT[l.verdict]}`);
+}
+
+function printInventory(inv) {
+  const seen = INV_TYPES.filter((t) => inv.counts[t]).map((t) => `${t} ${inv.counts[t]}`);
+  console.log(`\nINVENTORY ${inv.verdict}  (${seen.join(', ') || 'no components found'})`);
+  inv.fit.forEach((f) => console.log(`- ${f.rule}: ${f.type} "${f.label}" ${f.detail} -> ${f.suggest}`));
+  if (!inv.fit.length) console.log('- every component matches the shape of its data');
 }
 
 const VISIBLE_TEXT = { VISIBLE: '(>=8%)', SUBTLE: '(3-8%)', 'NOT VISIBLE': '(<3%)' };
@@ -1320,10 +1543,15 @@ function aggregate(results) {
     score: lays.reduce((a, r) => a + r.layout.score, 0),
     perTarget: lays.map((r) => ({ target: r.target, verdict: r.layout.verdict, score: r.layout.score })),
   } : null;
-  return { targets: ok.length, violations: V, score: headline.score, verdict, headline, palette, layout };
+  const invs = ok.filter((r) => r.inventory);
+  const inventory = invs.length ? {
+    verdict: invs.some((r) => r.inventory.verdict === 'SWAP') ? 'SWAP' : 'FIT',
+    perTarget: invs.map((r) => ({ target: r.target, verdict: r.inventory.verdict })),
+  } : null;
+  return { targets: ok.length, violations: V, score: headline.score, verdict, headline, palette, layout, ...(inventory ? { inventory } : {}) };
 }
 
-function printCompare(before, after, targets, palAfter, layAfter) {
+function printCompare(before, after, targets, palAfter, layAfter, invAfter) {
   const b = before.aggregate?.headline || before.headline || {};
   const prev = (before.targets || []).filter((t) => !t.error).map((t) => t.target).sort().join('\n');
   if (prev !== [...targets].sort().join('\n')) console.log('\nWARNING: before and after cover different page sets; counts are summed over different pages.');
@@ -1336,6 +1564,12 @@ function printCompare(before, after, targets, palAfter, layAfter) {
   const lb = before.aggregate?.layout;
   if (layAfter && lb) console.log(`\nLayout: ${lb.verdict} (score ${lb.score}) -> ${layAfter.verdict} (score ${layAfter.score})`);
   if (palAfter) console.log(`\nPalette: ${before.aggregate?.palette?.verdict ?? '-'} -> ${palAfter}`);
+  const ib = before.aggregate?.inventory;
+  if (invAfter && ib) {
+    const swaps = (a) => a.perTarget.filter((t) => t.verdict === 'SWAP').length;
+    const n = invAfter.perTarget.length;
+    console.log(`Inventory: ${swaps(ib)}/${ib.perTarget.length} SWAP (${ib.verdict}) -> ${swaps(invAfter)}/${n} SWAP (${invAfter.verdict})`);
+  }
   console.log(`\nOverall: ${d < 0 ? 'IMPROVED' : d > 0 ? 'WORSE' : 'UNCHANGED'} (violations ${b.violations ?? '-'} -> ${after.violations}, score ${b.score ?? '-'} -> ${after.score})`);
 }
 
@@ -1374,17 +1608,131 @@ function* walk(dir) {
   }
 }
 
+// ---- Source mode: roles, guards, routes (second pass, separate from RULES so slop numbers stay unchanged) ------
+// Answers "who sees this dashboard?" before a redesign: which roles exist, what guards them, which routes are guarded.
+// ponytail: regex only, no AST. Guard scope is JSX nesting or the next few lines of a route object; upgrade to a parser if configs get exotic.
+const GUARD_NAMES = ['ProtectedRoute', 'PrivateRoute', 'RequireAuth', 'RoleGuard', 'AuthGuard'];
+const GUARD_OPEN = new RegExp(`<(${GUARD_NAMES.join('|')})\\b`, 'g');
+const GUARD_CLOSE = new RegExp(`</(${GUARD_NAMES.join('|')})>`, 'g');
+const GUARD_SELF = new RegExp(`<(${GUARD_NAMES.join('|')})\\b[^>]*/>`, 'g');
+const GUARD_OTHER = [['canActivate', /\bcanActivate\b/], ['meta', /\bmeta\??\.(roles|requiresAuth)\b|\brequiresAuth\s*:/], ['UseGuards', /@UseGuards\(/]];
+const ROLE_WORDS = ['Admin', 'SuperAdmin', 'Superuser', 'Manager', 'Owner', 'Editor', 'Viewer', 'Moderator', 'Staff', 'Operator', 'Analyst'];
+const ROLE_FLAG = new RegExp(`\\bis(${ROLE_WORDS.join('|')})\\b`, 'g');
+const ROLE_PATTERNS = [
+  /\brole\s*[!=]==?\s*['"`]([\w-]+)['"`]/g,
+  /\bhas(?:Any)?Role\(\s*['"`]([\w-]+)['"`]/g,
+  /\broles\??\.(?:includes|some)\(\s*['"`]([\w-]+)['"`]/g,
+];
+const ROLE_LIST = /\b(?:roles?|allowedRoles|allowRoles|hasAnyRole|hasRole)\b\s*[:=(]\s*\{?\s*\[([^\]]*)\]/g;
+const CAN_CALL = /\bcan\(\s*['"`]([\w:.-]+)['"`]/g;
+const ROUTE_RES = [/<Route\b[^>]*?\bpath=\{?\s*['"`]([^'"`]+)['"`]/, /^\s*path=\{?\s*['"`]([^'"`]+)['"`]/, /\bpath\s*:\s*['"`]([^'"`]+)['"`]/];
+const GUARD_WINDOW = 5; // lines after a route path that still belong to the same route object
+const literals = (s) => [...s.matchAll(/['"`]([\w-]+)['"`]/g)].map((m) => m[1]);
+
+function scanRoles(file, content, base, acc) {
+  const rel = path.relative(base, file);
+  const at = (i) => `${rel}:${i + 1}`;
+  const ARIA_ROLES = new Set('button dialog tab tabpanel tablist link menu menuitem alert img presentation none listbox option checkbox radio switch tooltip navigation region grid row cell textbox combobox status separator banner main form search article list listitem heading group toolbar'.split(' '));
+  const addName = (name, i) => {
+    if (ARIA_ROLES.has(name)) return; // ponytail: ARIA stoplist; an app with a real 'editor' or 'viewer' role still passes, a real role named like an ARIA role is dropped
+
+    const n = acc.names.get(name) || { name, hits: 0, examples: [] };
+    n.hits++;
+    if (n.examples.length < 3) n.examples.push(`${at(i)} | ${content[i].trim().slice(0, 100)}`);
+    acc.names.set(name, n);
+  };
+  const fileHasMeta = content.some((l) => GUARD_OTHER[1][1].test(l));
+  if (/^middleware\.[tj]s$/.test(path.basename(file))) acc.guards.push({ at: `${rel}:1`, kind: 'middleware' });
+  // Next.js file routes: app/**/page.* and pages/**
+  const parts = rel.split(path.sep);
+  const ai = parts.lastIndexOf('app'), pi = parts.lastIndexOf('pages');
+  if (/^page\.[jt]sx?$/.test(parts[parts.length - 1]) && ai >= 0) {
+    const segs = parts.slice(ai + 1, -1).filter((s) => !/^\(.*\)$/.test(s) && !s.startsWith('@'));
+    acc.routes.push({ path: '/' + segs.join('/'), file: rel, line: 1, guarded: false, roles: [], inFile: true, fileIdx: acc.files });
+  } else if (pi >= 0 && /\.[jt]sx?$/.test(rel) && !parts.slice(pi + 1).some((s) => s.startsWith('_'))) {
+    const segs = parts.slice(pi + 1).map((s) => s.replace(/\.[jt]sx?$/, '')).filter((s) => s !== 'index');
+    acc.routes.push({ path: '/' + segs.join('/'), file: rel, line: 1, guarded: false, roles: [], inFile: true, fileIdx: acc.files });
+  }
+  const fileGuards = [];
+  const stack = []; // roles of each open guard element
+  let inEnum = false, inType = false;
+  content.forEach((line, i) => {
+    // role names
+    if (inEnum) {
+      if (/\}/.test(line)) inEnum = false;
+      const lit = literals(line.split('=').slice(1).join('='));
+      if (lit.length) lit.forEach((n) => addName(n.toLowerCase(), i));
+      else { const m = line.match(/^\s*(\w+)\s*[,}]?\s*$/); if (m) addName(m[1].toLowerCase(), i); }
+    } else if (inType) {
+      if (/^\s*\|/.test(line)) literals(line).forEach((n) => addName(n.toLowerCase(), i)); else inType = false;
+    }
+    if (/\benum\s+\w*Role\w*\s*\{/.test(line)) { inEnum = !/\}/.test(line.split('{').slice(1).join('{')); (line.split('{').slice(1).join('{').split('}')[0].match(/=\s*['"`]([\w-]+)/g) || []).forEach((m) => addName(m.replace(/^=\s*['"`]/, '').toLowerCase(), i)); }
+    const tm = line.match(/\btype\s+\w*Role\w*\s*=(.*)$/);
+    if (tm) { literals(tm[1]).forEach((n) => addName(n.toLowerCase(), i)); inType = !/;\s*$/.test(line) || /\|\s*$/.test(line); }
+    for (const re of ROLE_PATTERNS) for (const m of line.matchAll(re)) addName(m[1].toLowerCase(), i);
+    for (const m of line.matchAll(ROLE_LIST)) literals(m[1]).forEach((n) => addName(n.toLowerCase(), i));
+    for (const m of line.matchAll(ROLE_FLAG)) addName(m[1].toLowerCase(), i);
+    for (const m of line.matchAll(CAN_CALL)) addName('can:' + m[1], i);
+    // guards
+    if (!/^\s*(import|export\s+\{)/.test(line)) {
+      for (const m of line.matchAll(GUARD_OPEN)) { acc.guards.push({ at: at(i), kind: m[1] }); fileGuards.push(i); }
+      for (const [kind, re] of GUARD_OTHER) if (re.test(line)) { acc.guards.push({ at: at(i), kind }); fileGuards.push(i); }
+      if (fileHasMeta && /\.beforeEach\(/.test(line)) acc.guards.push({ at: at(i), kind: 'beforeEach' });
+    }
+    // route + guard scope
+    const open = (line.match(GUARD_OPEN) || []).length, close = (line.match(GUARD_CLOSE) || []).length, self = (line.match(GUARD_SELF) || []).length;
+    const rm = ROUTE_RES.map((re) => line.match(re)).find(Boolean);
+    if (rm) {
+      let guarded = stack.length > 0 || open > 0;
+      const roles = new Set(stack.flat());
+      const own = (l) => { for (const m of l.matchAll(ROLE_LIST)) literals(m[1]).forEach((n) => roles.add(n.toLowerCase())); };
+      own(line);
+      for (let j = i; j <= i + GUARD_WINDOW && j < content.length; j++) {
+        if (j > i && ROUTE_RES.some((re) => re.test(content[j]))) break;
+        if (GUARD_OTHER.some(([, re]) => re.test(content[j]))) { guarded = true; own(content[j]); }
+        if (j > i && /\broles\s*:/.test(content[j])) own(content[j]);
+      }
+      acc.routes.push({ path: rm[1], file: rel, line: i + 1, guarded, roles: [...roles] });
+    }
+    const net = open - close - self;
+    if (net > 0) { const r = []; for (let j = i; j < Math.min(i + 3, content.length); j++) for (const m of content[j].matchAll(ROLE_LIST)) literals(m[1]).forEach((n) => r.push(n.toLowerCase())); for (let k = 0; k < net; k++) stack.push(r); }
+    else for (let k = 0; k < -net; k++) stack.pop();
+  });
+  // file routes are guarded by a guard in the same file
+  acc.routes.filter((r) => r.inFile && r.fileIdx === acc.files).forEach((r) => { if (fileGuards.length) r.guarded = true; });
+}
+
+function finishRoles(acc) {
+  const names = [...acc.names.values()].sort((a, b) => b.hits - a.hits || a.name.localeCompare(b.name));
+  const known = new Set(names.filter((n) => !n.name.startsWith('can:')).map((n) => n.name));
+  const routes = acc.routes.map(({ inFile, fileIdx, ...r }) => {
+    const hit = r.path.toLowerCase().split('/').filter((s) => known.has(s)); // /admin/... is for admin
+    return { ...r, guarded: r.guarded || hit.length > 0, roles: [...new Set([...r.roles, ...hit])] };
+  });
+  return { names, guards: acc.guards, routes };
+}
+
+function printRoles(R) {
+  if (!R.names.length && !R.guards.length && !R.routes.length) return console.log('\nROLES none found in source: ask the user');
+  const g = R.routes.filter((r) => r.guarded).length;
+  console.log(`\nROLES ${R.names.length ? R.names.map((n) => n.name).join(', ') : 'none named'} | guards ${R.guards.length} | routes ${R.routes.length} (${g} guarded)`);
+  if (R.routes.length) console.log(table(R.routes.map((r) => [r.path, `${r.file}:${r.line}`, r.guarded ? 'guarded' : 'open', r.roles.join(', ') || '-']), ['route', 'at', 'access', 'roles']));
+}
+
 function scanSource(dir) {
   const single = statSync(dir).isFile();
   const base = single ? path.dirname(dir) : dir;
   const stats = Object.fromEntries(RULES.map((r) => [r.id, { hits: 0, examples: [] }]));
   const perFile = new Map();
+  const racc = { names: new Map(), guards: [], routes: [], files: 0 };
   let lines = 0, files = 0;
   for (const file of single ? [dir] : walk(dir)) {
     files++;
     const ext = path.extname(file);
     const content = readFileSync(file, 'utf8').split('\n');
     lines += content.length;
+    racc.files = files;
+    scanRoles(file, content, base, racc);
     content.forEach((line, i) => {
       for (const rule of RULES) {
         if (rule.markupOnly && !MARKUP_EXT.has(ext)) continue;
@@ -1401,7 +1749,7 @@ function scanSource(dir) {
   const per1000 = lines ? Math.round((10 * 1000 * total) / lines) / 10 : 0;
   const verdict = per1000 < SRC_LEAVE_BELOW ? 'LEAVE' : per1000 > SRC_REWORK_ABOVE ? 'REWORK' : 'TIGHTEN';
   const topFiles = [...perFile.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([f, n]) => ({ file: path.relative(base, f), hits: n }));
-  return { dir, files, lines, rules: stats, total, per1000, verdict, topFiles };
+  return { dir, files, lines, rules: stats, total, per1000, verdict, topFiles, roles: finishRoles(racc) };
 }
 
 function printSource(r) {
@@ -1413,11 +1761,12 @@ function printSource(r) {
   console.log('\nTop files:');
   r.topFiles.forEach((f) => console.log(`  ${f.hits}  ${f.file}`));
   console.log(`\nSource estimate: ${r.per1000} hits per 1000 lines  VERDICT ${r.verdict}  (${VERDICT_TEXT[r.verdict]})`);
+  printRoles(r.roles);
 }
 
 // ---- CLI --------------------------------------------------------------------
 function parseArgs(argv) {
-  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, height: 900, noLayout: false, shot: null, visibleChange: null, json: null, compare: null, src: null, help: false };
+  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, height: 900, noLayout: false, shot: null, visibleChange: null, json: null, compare: null, src: null, help: false, inventory: false, storageState: null, block: [], auth: null };
   const val = (i, flag) => {
     if (i + 1 >= argv.length) throw new Error(`${flag} needs a value`);
     return argv[i + 1];
@@ -1434,6 +1783,9 @@ function parseArgs(argv) {
     else if (a === '--compare') o.compare = val(i++, a);
     else if (a === '--src') o.src = val(i++, a);
     else if (a === '--no-layout') o.noLayout = true;
+    else if (a === '--inventory') o.inventory = true;
+    else if (a === '--storage-state') o.storageState = val(i++, a);
+    else if (a === '--block') o.block.push(val(i++, a));
     else if (a === '--shot') o.shot = val(i++, a);
     else if (a === '--visible-change') o.visibleChange = val(i++, a);
     else if (a === '--height') o.height = parseInt(val(i++, a), 10);
@@ -1466,6 +1818,11 @@ async function main() {
     if (!existsSync(o.visibleChange)) { console.error(`--visible-change: no such file ${o.visibleChange}`); process.exit(2); }
     if (o.shot && path.resolve(o.shot) === path.resolve(o.visibleChange)) { console.error('--shot and --visible-change point to the same file; the new shot would overwrite before.png. Use a different --shot path.'); process.exit(2); }
   }
+  if (o.storageState) {
+    if (!existsSync(o.storageState)) { console.error(`--storage-state: no such file ${o.storageState}`); process.exit(2); }
+    try { o.auth = loadAuth(o.storageState); } catch (e) { console.error(`--storage-state: ${e.message}`); process.exit(2); }
+    console.log(`auth: ${o.auth.cookies.length} cookies, ${o.auth.keys} storage keys`);
+  }
   const results = await runBrowser(o.targets, o);
   const errs = results.filter((r) => r.error);
   const oks = results.filter((r) => !r.error);
@@ -1477,10 +1834,11 @@ async function main() {
   const agg = aggregate(results);
   if (oks.length > 1) console.log(`\n== Aggregate (${agg.targets} targets) ==\nSCORE ${agg.score}  VERDICT ${agg.verdict}  (worst verdict; counts summed)`);
   if (oks.length > 1 && agg.layout) console.log(`LAYOUT ${agg.layout.verdict}  (worst; score summed ${agg.layout.score}; ${agg.layout.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
+  if (oks.length > 1 && agg.inventory) console.log(`INVENTORY ${agg.inventory.verdict}  (${agg.inventory.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
   if (agg.palette) console.log(`PALETTE ${agg.palette.verdict}  (worst; ${agg.palette.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
   if (o.json) writeFileSync(o.json, JSON.stringify({ mode: 'browser', width: o.width, dark: o.dark, targets: results, aggregate: agg, ...(oks[0].visibleChange ? { visibleChange: oks[0].visibleChange } : {}) }, null, 2));
   if (o.compare) {
-    try { printCompare(JSON.parse(readFileSync(o.compare, 'utf8')), agg.headline, oks.map((r) => r.target), agg.palette?.verdict, agg.layout); }
+    try { printCompare(JSON.parse(readFileSync(o.compare, 'utf8')), agg.headline, oks.map((r) => r.target), agg.palette?.verdict, agg.layout, agg.inventory); }
     catch (e) { console.error(`--compare: ${e.message}`); process.exit(2); }
   }
   if (o.visibleChange) printVisibleChange(oks[0]);
