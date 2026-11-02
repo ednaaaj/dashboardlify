@@ -4,11 +4,11 @@
 
 **`dashboardlify`** is an AI skill for Claude Code that builds, tightens and reworks admin dashboards so they look designed instead of generated. Every size, color, radius, shadow and duration comes from a fixed token set, so output is consistent and checkable.
 
-The skill is text files only: no build step, no dependencies. The optional scan needs Node 22 and Chrome, nothing to install. The only binaries in the repo are the 20-second demo video and its poster in `docs/`.
+The skill is text files only: no build step, no dependencies. The optional scan needs Node 22 and Chrome, nothing to install. The only binaries in the repo are the demo video and its looping preview in `docs/`.
 
-[![Watch the 20 second demo: dashboardlify surveys components, roles and scenarios, then proves the change is visible](docs/promo-poster.jpg)](docs/promo.mp4)
+![dashboardlify demo: surveys components, roles and scenarios, then proves the change is visible](docs/promo.gif)
 
-Watch the demo (20s, 2 MB): `/dashboardlify:improve` flags the wrong components, finds roles and guarded routes, fills a pages x roles x states grid, and ends on a measured before/after.
+[Watch the 20 second demo with sound](docs/promo.mp4). `/dashboardlify:improve` flags the wrong components, finds roles and guarded routes, fills a pages x roles x states grid, and ends on a measured before/after.
 
 ## Quick start
 
