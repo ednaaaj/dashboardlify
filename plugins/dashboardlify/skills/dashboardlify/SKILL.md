@@ -20,7 +20,7 @@ Choosing: "tighten / tidy up / polish / tokens" -> B. "move / position / layout 
 
 ## Triage first
 
-Before editing an existing screen, measure it: `node <skill dir>/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout] [--combo calm|paper|brand] [--inventory] [--storage-state f.json] [--block pat]`. `--combo` picks the colour combo reported in the PALETTE block (calm: dense data, paper: warm or consumer, brand: brand-heavy). Use `--src <dir>` for a source-only estimate when nothing can be rendered; it also prints a ROLES block (roles, guards, routes). `--inventory` adds an INVENTORY block (`FIT` or `SWAP`): per component, whether it fits the data shape (rules in [metric-to-visual.md](references/metric-to-visual.md) "Component fit"). `--storage-state` loads a test login from a file kept outside the repo; `--block <pattern>` forces the error or empty state. Needs Node 22 and Chrome, no installs.
+Before editing an existing screen, measure it: `node <skill dir>/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout] [--combo calm|paper|brand] [--inventory] [--status] [--storage-state f.json] [--block pat]`. `--combo` picks the colour combo reported in the PALETTE block (calm: dense data, paper: warm or consumer, brand: brand-heavy). Use `--src <dir>` for a source-only estimate when nothing can be rendered; it also prints a ROLES block (roles, guards, routes). `--inventory` adds an INVENTORY block (`FIT` or `SWAP`): per component, whether it fits the data shape (rules in [metric-to-visual.md](references/metric-to-visual.md) "Component fit"). `--status` implies `--inventory` and adds fit rules for status columns, long lists, dates, people and KPI context, plus a `STATUS OK|FIX|NONE` block (rules in [status.md](references/status.md), [content.md](references/content.md); English-only, heuristic: confirm hits by hand). `--storage-state` loads a test login from a file kept outside the repo; `--block <pattern>` forces the error or empty state. Needs Node 22 and Chrome, no installs.
 
 | Score | Verdict | Action |
 |---|---|---|
@@ -32,7 +32,7 @@ The scan gives two verdicts. The value verdict (table above) measures sizes, col
 
 Visible-change gate: every TIGHTEN or ARRANGE run saves a before screenshot (`--shot before.png`) and ends with `--visible-change before.png`. VISIBLE (>= 8% of the first screen changed) is success. SUBTLE (3-8%) is reported as subtle. Under 3% say "not visible" and never claim success; INCOMPARABLE (screenshots of different width, exit 1; same width with different height is cropped) is not success either. `--shot` and `--visible-change` must be different paths (exit 2 if equal); diagnose: override lost on specificity or import order, wrong files, dead CSS, or the problem is layout and not values.
 
-Any INVENTORY SWAP routes the work to Mode C: the brief lists the component swaps per rule. A screen is more than one page and one role: survey pages x roles x states first ([survey.md](references/survey.md)) and measure each reachable cell with `--inventory`.
+Any INVENTORY SWAP routes the work to Mode C: the brief lists the component swaps per rule. STATUS FIX with css issues goes to Mode B (colour values only); STATUS jsx issues go to the Mode C brief. A screen is more than one page and one role: survey pages x roles x states first ([survey.md](references/survey.md)) and measure each reachable cell with `--inventory`.
 
 The scan output is evidence, not a ruling. When the verdict surprises you (a tiny page scoring high, a messy one scoring low), say so and explain before acting.
 
@@ -82,18 +82,21 @@ In soft, cards may use radius up to 16 and controls may be pill-shaped. Every ot
 8. [references/palettes.md](references/palettes.md) - curated colour scales, domain defaults, tokens, contrast-safe fills, chart sets, zones and combos (generated table: [references/palettes/combos.md](references/palettes/combos.md)). All modes
 9. [references/render-only.md](references/render-only.md) - which regions earn a place, caps, cut list. A, C (B lists cut candidates only)
 10. [references/components.md](references/components.md) - cards, tables, forms, charts, states, detail rules. All modes
-11. [references/motion.md](references/motion.md) - allowed transitions. All modes
-12. [references/tokens.css](references/tokens.css) - copy these variables, do not retype values. All modes
-13. [references/anti-slop.md](references/anti-slop.md) - patterns to avoid + fix. All modes
-14. [references/copy.md](references/copy.md) - opt-in copy pass (`--copy`). B
-15. [references/redesign.md](references/redesign.md) - the full rework procedure. C
-16. [references/measure.md](references/measure.md) - measuring the existing UI by hand. C
-17. [references/metric-to-visual.md](references/metric-to-visual.md) - which visual fits which metric, plus the scan's component-fit rules. A, C
-18. [references/patterns.md](references/patterns.md) - proven dashboard patterns. A, C
-19. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn. Pick 1-2 closest to the product
-20. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
-21. [references/survey.md](references/survey.md) - pages x roles x states matrix, auth rules, per-cell evidence. C, improve
-22. [checklist.md](checklist.md) - verify before done. All modes
+11. [references/status.md](references/status.md) - status word to tone, pill, capacity bands. B (values), C
+12. [references/content.md](references/content.md) - page summary, KPI context, dates, grouping. C
+13. [references/identity.md](references/identity.md) - typeface, sidebar and accent presets; user chooses. C
+14. [references/motion.md](references/motion.md) - allowed transitions. All modes
+15. [references/tokens.css](references/tokens.css) - copy these variables, do not retype values. All modes
+16. [references/anti-slop.md](references/anti-slop.md) - patterns to avoid + fix. All modes
+17. [references/copy.md](references/copy.md) - opt-in copy pass (`--copy`). B
+18. [references/redesign.md](references/redesign.md) - the full rework procedure. C
+19. [references/measure.md](references/measure.md) - measuring the existing UI by hand. C
+20. [references/metric-to-visual.md](references/metric-to-visual.md) - which visual fits which metric, plus the scan's component-fit rules. A, C
+21. [references/patterns.md](references/patterns.md) - proven dashboard patterns. A, C
+22. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn. Pick 1-2 closest to the product
+23. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
+24. [references/survey.md](references/survey.md) - pages x roles x states matrix, auth rules, per-cell evidence. C, improve
+25. [checklist.md](checklist.md) - verify before done. All modes
 
 ## Hard rules
 
@@ -129,6 +132,7 @@ Visible, not cosmetic: snapping 30px to 24px is not enough. A pass must change w
 - icons: one size per context (nav 16, buttons 14-16, KPI 16-20), outline weight, no 28px+ solid glyphs in nav; KPI icon wells 32px squares
 - density: topbar 48-56px, nav item 32-36px, table row 40px with nowrap + ellipsis (inside overflow-x containers), card padding 16-20, page padding 24
 - radius, color, shadow, motion: as the hard rules
+Status colours: when the scan reports STATUS FIX with css issues, apply the word-to-tone mapping from [status.md](references/status.md) as values only. Mode B never changes font family, sidebar colour or accent hue ([identity.md](references/identity.md) is a Mode C decision).
 Component libraries (MUI/JSS, Bootstrap) override single-class CSS: raise specificity (e.g. `body .MuiButton-root`) in a bridge file instead of adding `!important`.
 
 If the tokens file (or a bridge mapping the app's own variables to the skill tokens) is not imported at the app entry, add it first. Keep dark mode working: map to the app's own variables when it has them.
@@ -178,7 +182,7 @@ No JSX, props, routes or data changes. Class names and text stay. DOM order stay
 
 Steps (same numbering as redesign.md):
 1. Context: product, users, the 3 decisions the screen supports, data shape.
-2. Map: regions, components, metrics, current visual per metric. Run the survey ([survey.md](references/survey.md)) and `--inventory` on each reachable cell; the brief lists component swaps per fired rule. Built from screenshots only when Assessment A will run.
+2. Map: regions, components, metrics, current visual per metric. Run the survey ([survey.md](references/survey.md)) and `--inventory` on each reachable cell; the brief lists component swaps per fired rule, and the status ([status.md](references/status.md)), content ([content.md](references/content.md)) and identity changes. Identity ([identity.md](references/identity.md)): show the 2-3 presets with a one-line rationale each and wait for the user; never apply one silently. Built from screenshots only when Assessment A will run.
 3. Two isolated assessments: A = blind design review (screenshots only, no source or class names), B = mechanical scan (greps, measure.md, contrast, histograms). Sub-agents are mandatory whenever a sub-agent/Task tool exists; A finishes and is recorded before any B output enters the synthesis. If run inline, the FIRST line of the report is `DEGRADED: single-context (<reason>)`.
 4. Audit against checklist.md and anti-slop.md (redesign.md audit checks #1-18), plus the palette verdict and the render-only cut list. Label detector false positives explicitly.
 5. Brief: spatial thesis, region order (reading path), visual per metric, preset, density, Color brief, P0-P3 changes, "Removed or moved" table (from the render-only cut list).
@@ -196,4 +200,4 @@ Hard safety rules:
 
 Every mode that touches colour: the Color brief.
 Mode A/B: files changed, scan delta (B), violations fixed by rule, anything left and why.
-Mode C: per-cell report (page, role, state, evidence rendered / source-checked / not covered with reason), scan table, ranked findings (P0-P3), approved brief, files and every JSX change listed, before/after counts (cards, colors, radii, font sizes, borders), build/test result.
+Mode C: which status and fit rules fired and which were fixed, per-cell report (page, role, state, evidence rendered / source-checked / not covered with reason), scan table, ranked findings (P0-P3), approved brief, files and every JSX change listed, before/after counts (cards, colors, radii, font sizes, borders), build/test result.

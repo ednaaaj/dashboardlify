@@ -111,11 +111,11 @@ One step only, if you want it:
 Every existing-dashboard run starts with a scan, so the work follows evidence instead of taste.
 
 ```
-node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--no-palette] [--combo calm|paper|brand] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout]
+node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--no-palette] [--combo calm|paper|brand] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout] [--status]
 node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs --src <dir>   # source-only estimate
 ```
 
-Add `--inventory` to also list what each page shows and whether each component suits its data (`INVENTORY FIT|SWAP`), `--storage-state <file>` to scan a logged-in role with a saved state file (values are never printed), and `--block <pattern>` to force an error or empty state. `--src` also prints a ROLES block with the roles, guards and routes it finds.
+Add `--status` to also check status labels (implies `--inventory`; prints `STATUS OK|FIX|NONE`). Add `--inventory` to also list what each page shows and whether each component suits its data (`INVENTORY FIT|SWAP`), `--storage-state <file>` to scan a logged-in role with a saved state file (values are never printed), and `--block <pattern>` to force an error or empty state. `--src` also prints a ROLES block with the roles, guards and routes it finds.
 
 Needs Node 22 and Chrome. No installs. `--combo calm|paper|brand` picks the colour combo the PALETTE block reports (calm for dense data, paper for warm or consumer products, brand for brand-heavy ones). It counts the things that make a screen look generated: distinct font sizes, radii and colours, off-scale spacing, shadows, gradients, uppercase text, mixed icon sizes, low-contrast text, and long or looping motion.
 
@@ -145,6 +145,28 @@ Example delta after a tighten run (illustrative numbers):
 - **Scenarios.** It builds a pages x roles x states grid (default, empty, loading, error, long data), measures every cell it can reach, and reports each cell as covered or not covered, with the reason. Logged-in roles need a test account or a state file you keep outside the repo; credentials are never stored or printed. Procedure: `references/survey.md`.
 
 The detection is heuristic. Scan output is evidence, not a verdict: the run labels false positives.
+
+## Status, content and identity (v0.5.0)
+
+A page can have perfect spacing and still look generic. Spacing, type scale and radii are the part a token pass can fix. The rest is status, content and identity.
+
+**Status system.** Every status label (on track, at risk, overdue, paid, pending...) uses one pill style, with semantic colour: the same word always gets the same colour, few colours overall, and text contrast of at least 4.5:1 against its background. Colour is never the only signal: a coloured dot always sits next to the word. `--status` flags plain grey status text, mixed pill styles, one word in several colours, too many colours, low contrast and colour-only dots. Rules: `references/status.md`.
+
+**Component rules** (each is evidence from the scan, confirmed by hand):
+
+- Status table with a percent column becomes project rows with a progress bar and a status pill.
+- Flat list of dates becomes groups: Overdue, Today, This week.
+- KPI card gets a context line (change or next step), not just a label and a number.
+- People list with a number each becomes capacity bars with state labels (Light, Balanced, Heavy, Over).
+- Long list with a status column gets filter tabs with counts.
+
+**Content rules.** One summary sentence under the page title that carries the numbers. Relative dates ("2 days overdue") next to the absolute one. Advisory only, no verdict change: a search input without a shortcut hint, and a page without a summary sentence.
+
+**Identity presets** (`references/identity.md`): editorial (serif headings and KPI numerals, dark warm sidebar, amber accent), product (plain sans, light sidebar, blue accent), ink (slate sidebar, teal accent). `improve` and `rework` show 2 or 3 of them and wait for your choice; none is applied silently. Mode B (`tighten`) never changes the font family, sidebar colour or accent hue.
+
+**What each layer can and cannot do.** Spacing fixes alone cannot add a status system, a summary sentence, progress bars or a look of its own: the plain and designed fixtures in `examples/` both score 0 on the spacing metrics. Identity, status and content change those. They need Mode C (markup changes) or an approved preset.
+
+Limits: detection is English-only (status words, dates, names) and heuristic. Scan output is evidence, not a verdict; the run labels false positives. Table and list labels print empty in `--status` output when the heading sits outside the card.
 
 ## Why did nothing change?
 

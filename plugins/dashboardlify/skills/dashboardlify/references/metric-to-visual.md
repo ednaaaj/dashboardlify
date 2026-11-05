@@ -72,5 +72,12 @@ Pick the visual from the data shape, not from taste. Colors: `--chart-1..6` cate
 | chart-undersized | Chart under 280x160 and taller than 48px (48px or less is a sparkline, exempt) | Grow to 280x160 minimum | Min size |
 | placeholder-widget | Card with "Coming soon", "Lorem", "TODO", or only "--" or "N/A" | Fill it or cut it ([render-only.md](render-only.md)) | none |
 | map-check | A map is present | Table with flags unless location drives a decision | Geographic |
+| table-status-to-rows | Table with a status column and a percent column (60%+ of cells each) and no progress bar | Project row: progress bar + status pill ([status.md](status.md)) | Ratio / % of a goal, Status |
+| long-list-no-filter | Table with 8+ rows, a status column, and no tabs, select or search in or just before its card | Segmented tabs with counts ([status.md](status.md)) | Status |
+| flat-dates-to-groups | 6+ list items with a date and no heading or group row between them | Group by Overdue / Today / This week ([content.md](content.md)) | Schedule |
+| people-list-to-capacity | 4+ items pairing a person (name or avatar) with a number and no bar in the card | Capacity bars with state labels Light / Balanced / Heavy / Over ([status.md](status.md)) | Capacity / limit |
+| kpi-no-context | KPI card with fewer than 6 letters besides its label and numeral | Add a context line: change or next step ([content.md](content.md)) | Single number, no context |
+| search-no-shortcut | Search input with no kbd and no "Ctrl K", "⌘K" or "/" hint (advisory) | Show a kbd hint ([content.md](content.md)) | none |
+| no-page-summary | No sentence of 6+ words within 120px under the h1 (advisory) | One summary sentence that carries the numbers ([content.md](content.md)) | none |
 
-`map-check` is advisory and does not change the verdict.
+The last seven rules need `--status` (it implies `--inventory`). They are English-only and heuristic: confirm each hit by hand. `map-check`, `search-no-shortcut` and `no-page-summary` are advisory and do not change the verdict.

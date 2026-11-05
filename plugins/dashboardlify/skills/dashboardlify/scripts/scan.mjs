@@ -30,6 +30,21 @@ const INV_BAR_MAX_ITEMS = 6; // <= this many status-like items -> segmented bar,
 const INV_CHART_MIN_W = 280; // chart-undersized
 const INV_CHART_MIN_H = 160;
 const INV_SPARK_MAX_H = 48; // charts this short are sparklines: exempt
+// Status system and content rules (--status, implies --inventory). Tune against examples/northwind-team*.html.
+// ponytail: English-only status words; a localized dashboard needs its own list (add it here)
+const STATUS_X_WORDS = /^(on track|at risk|behind|ahead|due today|due soon|overdue|late|paid|unpaid|pending|refunded|active|inactive|open|closed|done|blocked|in review|on hold|scheduled|failed|delayed|complete|incomplete|cancell?ed)$/i;
+const STATUS_MIN_LABELS = 3; // fewer status labels than this: verdict NONE (no status system to judge)
+const STATUS_MAX_STYLES = 1; // status-mixed-style: one style key (pill|text, bg, radius bucket, weight) for all labels
+const STATUS_MAX_COLORS = 5; // status-too-many-colors
+const STATUS_MIN_CONTRAST = 4.5; // status-low-contrast: label colour vs nearest opaque background
+const STATUS_NEUTRAL_SPREAD = 20; // rgb max-min under this counts as grey
+const INV_STATUS_COL_SHARE = 0.6; // table column share of status words
+const INV_PCT_COL_SHARE = 0.6; // table column share of ^\d{1,3}%$ cells
+const INV_DATES_MIN_ITEMS = 6; // flat-dates-to-groups: dated list items with no group heading
+const INV_KPI_CONTEXT_MIN_CHARS = 6; // kpi-no-context: letters left in the card after label and numeral
+const INV_PEOPLE_MIN = 4; // people-list-to-capacity: person + number items
+const INV_FILTER_MIN_ROWS = 8; // long-list-no-filter
+const INV_ADVISORY = new Set(['map-check', 'search-no-shortcut', 'no-page-summary']); // never turn FIT into SWAP
 
 const FONT_SCALE = [12, 13, 14, 16, 20, 24, 32];
 const WEIGHT_OK = [400, 500, 600];
@@ -45,7 +60,7 @@ const USAGE = `dashboardlify scan - quantify how sloppy a dashboard looks
 Usage:
   node scan.mjs <target...> [--json out.json] [--compare before.json] [--width 1440] [--dark] [--no-palette] [--combo calm|paper|brand]
                    [--height 900] [--no-layout] [--shot first.png] [--visible-change before.png]
-                   [--inventory] [--storage-state state.json] [--block <url-pattern>]
+                   [--inventory] [--status] [--storage-state state.json] [--block <url-pattern>]
   node scan.mjs --src <dir> [--json out.json]
 
   <target>   http(s) URL or local .html file (needs Chrome/Chromium; set CHROME_PATH to override)
@@ -65,6 +80,9 @@ Usage:
                 (single target; pixels are compared inside Chrome, no dependencies)
   --inventory   list the components on the page (tables, charts, KPIs, lists, forms, states) and say FIT or SWAP:
                 SWAP = a component shows its data in the wrong shape (table of a time series, 3-number table, counts as a list...)
+  --status      implies --inventory; also judge the status system (labels, pills, colours, contrast) and the content/domain rules
+                (STATUS OK|FIX|NONE; fit rules table-status-to-rows, flat-dates-to-groups, kpi-no-context, people-list-to-capacity,
+                long-list-no-filter; advisory: search-no-shortcut, no-page-summary). English-only word lists; hits are evidence, confirm by hand.
   --storage-state <file>  log in without a form: Playwright-style {cookies, origins[].localStorage} or a bare cookie array
                 (values are sent to the browser only; the scan prints counts, never values)
   --block <pattern>  block matching requests (repeatable, '*' wildcard) so the page shows its error/empty state
@@ -500,7 +518,7 @@ function layoutProbe(VW, VH) {
 
 // ---- Inventory probe (--inventory; runs inside the page, self-contained) ------------------------
 // Lists what the page is made of so the shape of each component can be checked against its data.
-function inventoryProbe() {
+function inventoryProbe(deep, cfg) {
   const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
   const alpha = (s) => { const m = (s || '').match(/rgba?\(([^)]+)\)/); if (!m) return 0; const p = m[1].split(/[\s,\/]+/).filter(Boolean); return p.length > 3 ? parseFloat(p[3]) : 1; };
   const VW = window.innerWidth;
@@ -508,6 +526,8 @@ function inventoryProbe() {
   // ponytail: English month names and numeric formats only; add locales if a real dashboard needs them
   const DATE = new RegExp(`^(\\d{4}[-/]\\d{1,2}([-/]\\d{1,2})?|\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4}|${MON}\\s+\\d{1,2}(,?\\s*\\d{2,4})?|\\d{1,2}\\s+${MON}(\\s+\\d{2,4})?|${MON}(\\s*'?\\d{2,4})?|q[1-4]\\s*'?\\d{0,4}|w(eek)?\\s*\\d{1,2}|(mon|tue|wed|thu|fri|sat|sun)[a-z]*|(19|20)\\d{2})$`, 'i');
   const NUM = /^[~+\-−–$€£¥(]*\d[\d,.\s]*\s*(%|[kKmMbB]|ms|s|pts?|x)?\)?$/;
+  // ponytail: --status also lets a KPI numeral carry a duration unit (6.4d, 3h); plain --inventory keeps the old NUM so its output is unchanged
+  const NUMK = deep ? /^[~+\-−–$€£¥(]*\d[\d,.\s]*\s*(%|[kKmMbB]|ms|s|d|h|w|min|hrs?|days?|pts?|x)?\)?$/ : NUM;
   const STATUS = /^(open|closed|pending|active|inactive|paid|unpaid|failed|success|error|done|new|in progress|draft|shipped|delivered|cancell?ed|refunded|resolved|overdue|late|approved|rejected|blocked|processing|completed|queued|running|stopped|warning|ok|healthy|on hold|returned)$/i;
   const vis = (el) => { const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden') return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? r : null; };
   const txt = (el) => (el.innerText ?? el.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -533,8 +553,11 @@ function inventoryProbe() {
     return t.slice(0, 48);
   };
   const out = [];
+  const outEl = []; // element behind each component (deep annotations)
+  const kpiNum = new Map(); // kpi card -> numeral element
   const seen = new Set();
   const push = (type, el, extra, card) => {
+    outEl.push(el);
     const r = el.getBoundingClientRect();
     out.push({ type, label: labelOf(el, card === undefined ? cardOf(el) : card), w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top + window.scrollY), ...extra });
   };
@@ -600,11 +623,12 @@ function inventoryProbe() {
   for (const el of document.querySelectorAll('body *')) {
     if (/^(SCRIPT|STYLE|H[1-6]|INPUT|SELECT|TEXTAREA|OPTION|BUTTON|A)$/.test(el.tagName) || el instanceof SVGElement) continue;
     const t = own(el);
-    if (!t || t.length > 16 || !/\d/.test(t) || !NUM.test(t.replace(/\s/g, '')) || el.closest('table,[role=table],[role=grid],li,svg,canvas,nav,[role=navigation]') || inChart(el)) continue;
+    if (!t || t.length > 16 || !/\d/.test(t) || !NUMK.test(t.replace(/\s/g, '')) || el.closest('table,[role=table],[role=grid],li,svg,canvas,nav,[role=navigation]') || inChart(el)) continue;
     const r = vis(el); if (!r || px(getComputedStyle(el).fontSize) < 20) continue;
     const card = cardOf(el);
     if (!card || kpiCards.has(card) || card.querySelector('table,[role=table]')) continue;
     kpiCards.add(card);
+    kpiNum.set(card, el);
     push('kpi', card, {}, card);
     if (!out[out.length - 1].label) { // no heading element: first other short text in the card
       const sib = [...card.querySelectorAll('*')].find((e) => e !== el && own(e) && own(e).length <= 40 && !NUM.test(own(e)) && vis(e));
@@ -637,7 +661,119 @@ function inventoryProbe() {
   });
   dedupe('loading', [...document.querySelectorAll('[class*=skeleton i],[class*=spinner i],[class*=shimmer i],[class*=loading i],[aria-busy=true]')].filter(vis));
   dedupe('error', [...[...document.querySelectorAll('[role=alert]')].filter(vis), ...leafText(/failed to|went wrong|error loading|could not load|couldn.t load|unable to load|request failed/i, 120)]);
-  return { components: out };
+  if (!deep) return { components: out };
+
+  // ---- deep (--status): extra facts per component, then the status labels ----
+  // ponytail: person/date detection is heuristic and English-only (capitalised names, English month/relative words);
+  // it needs an avatar or a people-ish heading to count a person. Hits are evidence, confirm by hand.
+  const SX = new RegExp(`(?:${STATUS.source})|(?:${cfg.words})`, 'i');
+  const ANYWORD = new RegExp(`\\b(?:${STATUS.source.slice(2, -2)}|${cfg.words.slice(2, -2)})\\b`, 'i');
+  const SKIP = 'nav,[role=navigation],button,th,thead,[role=tab],[role=tablist],[role=columnheader],h1,h2,h3,h4,h5,h6,a,option,select,caption,legend,[role=menu],[role=heading]';
+  const hex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const hexOf = (s) => { const m = (s || '').match(/^rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat); return p.length >= 3 && p.every(Number.isFinite) ? hex(p[0], p[1], p[2]) : null; };
+  const spread = (h) => { const n = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); return Math.max(...n) - Math.min(...n); };
+  const cellsOf = (r) => [...r.children].filter((c) => /^(TD|TH)$/.test(c.tagName) || /^(cell|gridcell|columnheader|rowheader)$/.test(c.getAttribute('role') || ''));
+  const CTRL = 'select,[role=tablist],[role=search],[role=combobox],input:not([type=hidden]):not([type=checkbox]):not([type=radio])';
+  const BARISH = /(^|[\s_-])(bar|progress|meter|gauge|capacity)([\s_-]|$)/;
+  const hasBar = (root) => !!root && (!!root.querySelector('progress,meter,[role=progressbar]') || [...root.querySelectorAll('*')].some((e) => BARISH.test(tokens(e))));
+  const REL = /\b(today|tomorrow|yesterday|overdue|due (today|tomorrow|in|on)|in \d+ (days?|hours?|weeks?)|\d+ (days?|hours?|weeks?) (ago|late|left))\b/i;
+  const DT = new RegExp(`(^|\\s)(${MON}\\s+\\d{1,2}|\\d{1,2}\\s+${MON}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}/\\d{1,2}(/\\d{2,4})?)(?=$|[\\s,.])`, 'i');
+  const NAME = /^([A-Z]{1,3}\s+)?[A-Z][a-z]+(?:['-][A-Z][a-z]+)?(?:\s[A-Z][a-z]+(?:['-][A-Z][a-z]+)?){1,2}(\s|$)/;
+  const PEOPLE_HEAD = /people|team|member|staff|owner|assignee|user|workload|capacity|contributor|agent|engineer|driver|employee/i;
+  const avatarIn = (li) => [...li.querySelectorAll('*')].slice(0, 8).some((e) => {
+    const r = e.getBoundingClientRect(), cs = getComputedStyle(e); const rad = cs.borderTopLeftRadius;
+    const round = rad.endsWith('%') ? parseFloat(rad) >= 40 : px(rad) >= r.width * 0.4;
+    return r.width >= 16 && r.width <= 56 && Math.abs(r.width - r.height) < 4 && round && (e.tagName === 'IMG' || /^[A-Z]{1,3}$/.test(txt(e)));
+  });
+  out.forEach((c, i) => {
+    const e = outEl[i];
+    if (c.type === 'table') {
+      const rows = [...e.querySelectorAll('tr,[role=row]')].map(cellsOf).filter((cs) => cs.length && !cs.every((x) => x.tagName === 'TH' || /header/.test(x.getAttribute('role') || '')));
+      const share = (re) => { let best = 0; for (let k = 0; k < Math.max(0, ...rows.map((r) => r.length)); k++) best = Math.max(best, rows.filter((r) => r[k] && re.test(txt(r[k]))).length / Math.max(1, rows.length)); return Math.round(best * 100) / 100; };
+      c.statusColShare = share(SX);
+      c.pctColShare = share(/^\d{1,3}%$/);
+      c.progress = !!e.querySelector('progress,meter,[role=progressbar]');
+      // ponytail: "near" = inside the card or in the 2 element siblings before it; a filter further up the page is missed
+      const card = cardOf(e) || e; let near = !!card.querySelector(CTRL);
+      for (let s = card.previousElementSibling, n = 0; s && n < 2; s = s.previousElementSibling, n++) if (s.matches(CTRL) || s.querySelector(CTRL)) near = true;
+      c.ctrlNear = near;
+    } else if (c.type === 'list') {
+      const lis = [...e.querySelectorAll('li,[role=listitem]')].filter(vis);
+      const dated = (li) => { const t = txt(li); return DT.test(t) || REL.test(t); };
+      c.dated = lis.filter(dated).length;
+      c.grouped = !!e.querySelector('h1,h2,h3,h4,h5,h6,[role=heading],[role=separator],hr,[class*=group i],[class*=divider i]')
+        || lis.some((li) => !dated(li) && txt(li).length <= 14 && (+getComputedStyle(li).fontWeight >= 600 || getComputedStyle(li).textTransform === 'uppercase'));
+      c.people = lis.filter((li) => { const t = txt(li); return /\d/.test(t) && (avatarIn(li) || (NAME.test(t) && PEOPLE_HEAD.test(c.label))); }).length;
+      c.barInCard = hasBar(cardOf(e) || e);
+    } else if (c.type === 'kpi') {
+      let rest = txt(e);
+      for (const s of [c.label, own(kpiNum.get(e) || e)]) if (s) rest = rest.replace(s, ' ');
+      c.ctx = (rest.match(/\p{L}/gu) || []).length;
+    }
+  });
+
+  // status labels: short leaf text that is a status word, outside nav/buttons/headers/tabs/charts
+  const behind = (el) => { for (let a = el; a; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.backgroundImage !== 'none') return null; const al = alpha(cs.backgroundColor); if (al >= 0.99) return hexOf(cs.backgroundColor); if (al > 0) return null; } return /dark/.test(getComputedStyle(document.documentElement).colorScheme) ? null : '#ffffff'; };
+  const labels = [];
+  let capped = false;
+  const kpiEls = out.map((c, i) => (c.type === 'kpi' ? outEl[i] : null)).filter(Boolean);
+  for (const el of document.querySelectorAll('body *')) {
+    if (el instanceof SVGElement || /^(SCRIPT|STYLE|OPTION)$/.test(el.tagName)) continue;
+    const t = own(el);
+    if (!t || t.length > 24 || !SX.test(t) || el.closest(SKIP + ',[class*=legend i],[class*=swatch i]') || inChart(el) || !vis(el)) continue;
+    if (kpiEls.some((k) => k.contains(el))) continue; // "Delivered" as a KPI label is not a status marker
+    // "Pending 12": a label followed by a bare number is a count (counts-to-bar), not a status marker
+    // ponytail: only li and rows of <= 2 cells are checked; a custom div row with label + count still counts as a status label
+    const row = el.closest('li,tr,[role=row]');
+    if (row && (row.tagName === 'LI' || cellsOf(row).length <= 2) && txt(row).startsWith(txt(el)) && /^[\s\d,.%]*$/.test(txt(row).slice(txt(el).length))) continue;
+    let pill = null;
+    for (let a = el, n = 0; a && a !== document.body && n < 3 && txt(a) === txt(el); a = a.parentElement, n++) {
+      const r = a.getBoundingClientRect(), cs = getComputedStyle(a);
+      if (a.matches('td,th,li,tr,[role=cell],[role=gridcell],main,section') || r.height > 40 || r.width > 200) break;
+      const bw = ['Top', 'Right', 'Bottom', 'Left'].some((s) => px(cs['border' + s + 'Width']) > 0 && cs['border' + s + 'Style'] !== 'none');
+      if (alpha(cs.backgroundColor) >= 0.05 || (bw && px(cs.borderTopLeftRadius) >= 4)) { pill = a; break; }
+    }
+    const cs = getComputedStyle(el), fg = alpha(cs.color) >= 0.99 ? hexOf(cs.color) : null;
+    let style = 'text/' + (+cs.fontWeight >= 600 ? 'b' : 'n'), bg = null;
+    if (pill) {
+      const pcs = getComputedStyle(pill), h = pill.getBoundingClientRect().height, rad = pcs.borderTopLeftRadius;
+      const rr = rad.endsWith('%') ? (h * parseFloat(rad)) / 100 : px(rad);
+      bg = alpha(pcs.backgroundColor) >= 0.05 ? hexOf(pcs.backgroundColor) : null;
+      style = `pill/${bg ? 'bg' : 'outline'}/${rr >= h / 2 - 1 ? 'full' : rr >= 6 ? 'md' : rr > 0 ? 'sm' : 'none'}/${+cs.fontWeight >= 600 ? 'b' : 'n'}`;
+    }
+    labels.push({ word: t.toLowerCase(), pill: !!pill, style, fg, bg, sig: bg || fg || cs.color, behind: pill && bg && alpha(getComputedStyle(pill).backgroundColor) >= 0.99 ? bg : behind(el) });
+    if (labels.length >= 500) { capped = true; break; }
+  }
+  // colour-only dots: a small chromatic round box in a table cell / list item with no status word beside it
+  // ponytail: legend swatches are skipped by class name only; a table cell with a dot + series name is flagged
+  let colorOnly = 0;
+  for (const el of document.querySelectorAll('body *')) {
+    if (el instanceof SVGElement || el.children.length || own(el)) continue;
+    const r = el.getBoundingClientRect(); if (r.width < 4 || r.width > 12 || Math.abs(r.width - r.height) > 1) continue;
+    const cs = getComputedStyle(el), rad = cs.borderTopLeftRadius, bgc = hexOf(cs.backgroundColor);
+    if (!bgc || alpha(cs.backgroundColor) < 0.5 || spread(bgc) < cfg.spread || !(rad.endsWith('%') ? parseFloat(rad) >= 40 : px(rad) >= r.width / 2 - 1)) continue;
+    const host = el.closest('td,[role=cell],[role=gridcell],li');
+    if (!host || inChart(el) || host.closest('nav,[role=navigation],[class*=legend i],[class*=swatch i]') || !vis(el)) continue;
+    const ht = txt(host);
+    if (host.tagName === 'LI' ? ht === '' : !ANYWORD.test(ht)) colorOnly++;
+  }
+  // advisory: search input without a shortcut hint
+  const searches = [...document.querySelectorAll('input')].filter((i) => vis(i) && (i.type === 'search' || /search/i.test(`${i.placeholder} ${i.getAttribute('aria-label') || ''}`)));
+  const searchNoShortcut = searches.filter((i) => {
+    for (let p = i.parentElement, n = 0; p && n < 2; p = p.parentElement, n++) if (p.querySelector('kbd') || /(ctrl|⌘|cmd|⌥)\s*\+?\s*[a-z]\b|(^|\s)\/(\s|$)/i.test(txt(p))) return false;
+    return true;
+  }).length;
+  // advisory: a sentence of >= 6 words within 120px under the h1 (null = no h1)
+  const h1 = [...document.querySelectorAll('h1')].find(vis);
+  let summary = null;
+  if (h1) {
+    const b = h1.getBoundingClientRect().bottom;
+    summary = [...document.querySelectorAll('body *')].some((e) => {
+      const t = own(e); if (!t || t.split(/\s+/).length < 6 || e.closest(SKIP + ',h1') || /^(SCRIPT|STYLE)$/.test(e.tagName)) return false;
+      const r = vis(e); return !!r && r.top >= b - 4 && r.top <= b + 120;
+    });
+  }
+  return { components: out, status: { labels, capped, colorOnly, searches: searches.length, searchNoShortcut, summary } };
 }
 
 // ---- Layout analysis: probe metrics -> issues, score, verdict ------------------
@@ -646,6 +782,7 @@ const LAYOUT_WEIGHT = {
   'truncated-text': 1, 'data-above-fold': 3, 'card-padding': 1, 'sidebar-width': 1, 'content-width': 1,
 };
 const LAYOUT_RANK = { OK: 0, ARRANGE: 1, REWORK: 2 };
+const STATUS_RANK = { NONE: 0, OK: 1, FIX: 2 };
 const NEXT_TEXT = {
   ARRANGE: 'values alone will not make this look different. Run /dashboardlify:arrange (CSS-only layout)',
   REWORK: 'values alone will not make this look different. Run /dashboardlify:rework',
@@ -654,7 +791,7 @@ const NEXT_TEXT = {
 // ---- Inventory analysis: components -> fit rules, verdict ---------------------------------------
 const INV_TYPES = ['table', 'chart', 'kpi', 'list', 'form', 'empty', 'placeholder', 'map', 'calendar', 'loading', 'error'];
 
-function analyzeInventory(raw) {
+function analyzeInventory(raw, deep) {
   const comps = raw.components;
   const counts = Object.fromEntries(INV_TYPES.map((t) => [t, 0]));
   comps.forEach((c) => { counts[c.type]++; });
@@ -678,9 +815,65 @@ function analyzeInventory(raw) {
     }
     if (c.type === 'placeholder') add('placeholder-widget', c, 'placeholder text instead of data', 'fill it or cut it', 'render-only.md');
     if (c.type === 'map') add('map-check', c, 'map present', 'table with flags unless location drives a decision');
+    if (!deep) continue;
+    if (c.type === 'table') {
+      if (c.statusColShare >= INV_STATUS_COL_SHARE && c.pctColShare >= INV_PCT_COL_SHARE && !c.progress) {
+        add('table-status-to-rows', c, `${c.rows} rows with a status column and a percent column, no progress bar`, 'project row: progress bar + status pill', 'status.md');
+      }
+      if (c.rows >= INV_FILTER_MIN_ROWS && c.statusColShare >= INV_STATUS_COL_SHARE && !c.ctrlNear) {
+        add('long-list-no-filter', c, `${c.rows} rows with a status column, no tabs/select/search near it`, 'segmented tabs with counts', 'status.md');
+      }
+    }
+    if (c.type === 'list') {
+      if (c.dated >= INV_DATES_MIN_ITEMS && !c.grouped) add('flat-dates-to-groups', c, `${c.dated} dated items, no group heading between them`, 'group by Overdue / Today / This week', 'content.md');
+      if (c.people >= INV_PEOPLE_MIN && !c.barInCard) add('people-list-to-capacity', c, `${c.people} people with a number each, no bar`, 'capacity bars with state labels (Light / Balanced / Heavy / Over)', 'status.md');
+    }
+    if (c.type === 'kpi' && c.ctx < INV_KPI_CONTEXT_MIN_CHARS) add('kpi-no-context', c, `${c.ctx} letters besides label and numeral`, 'add a context line (change or next step)', 'content.md');
   }
-  const verdict = fit.some((f) => f.rule !== 'map-check') ? 'SWAP' : 'FIT';
-  return { verdict, counts, components: comps, fit };
+  const st = deep && raw.status;
+  if (st) {
+    if (st.searchNoShortcut) fit.push({ rule: 'search-no-shortcut', type: 'form', label: '', detail: `${st.searchNoShortcut} search input${st.searchNoShortcut === 1 ? '' : 's'} without a shortcut hint`, suggest: 'show a kbd hint (Ctrl K or /)', ref: 'content.md' });
+    if (st.summary === false) fit.push({ rule: 'no-page-summary', type: 'page', label: '', detail: 'no sentence of 6+ words within 120px under the h1', suggest: 'one summary sentence that carries the numbers', ref: 'content.md' });
+  }
+  const verdict = fit.some((f) => !INV_ADVISORY.has(f.rule)) ? 'SWAP' : 'FIT';
+  return { verdict, counts, components: comps, fit, ...(st ? { status: analyzeStatus(st) } : {}) };
+}
+
+// ---- Status analysis: labels -> issues, verdict ------------------------------------------------
+function analyzeStatus(st) {
+  const L = st.labels;
+  const words = [];
+  for (const l of L) {
+    let w = words.find((x) => x.word === l.word);
+    if (!w) words.push(w = { word: l.word, count: 0, colors: [], tone: '' });
+    w.count++;
+    if (!w.colors.includes(l.sig)) w.colors.push(l.sig);
+    if (!w.fg) w.fg = l.fg;
+  }
+  const spreadOf = (h) => { const n = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); return Math.max(...n) - Math.min(...n); };
+  const hexSig = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c : null);
+  words.forEach((w) => {
+    const h = hexSig(w.fg) || w.colors.map(hexSig).find(Boolean);
+    w.tone = !h || spreadOf(h) < STATUS_NEUTRAL_SPREAD ? 'grey' : hueName(hexToOklch(h).H);
+  });
+  words.forEach((w) => delete w.fg);
+  const styles = new Set(L.map((l) => l.style)).size;
+  const colors = new Set(L.map((l) => l.sig)).size;
+  const issues = [];
+  const add = (rule, detail, fix) => issues.push({ rule, detail, fix, ref: 'status.md' });
+  if (L.length >= STATUS_MIN_LABELS) {
+    const grey = (l) => !l.pill && l.fg && spreadOf(l.fg) < STATUS_NEUTRAL_SPREAD;
+    if (L.every(grey)) add('status-plain', `${L.length} status labels are plain grey text, no pill`, 'jsx');
+    if (styles > STATUS_MAX_STYLES) add('status-mixed-style', `${styles} label styles (${[...new Set(L.map((l) => l.style))].join(', ')})`, 'css');
+    const split = words.filter((w) => w.colors.length > 1);
+    if (split.length) add('status-word-colors', `${split.map((w) => `"${w.word}" in ${w.colors.length} colours`).join(', ')}`, 'css');
+    if (colors > STATUS_MAX_COLORS) add('status-too-many-colors', `${colors} colours across status labels (max ${STATUS_MAX_COLORS})`, 'css');
+    const low = L.filter((l) => l.fg && l.behind && contrastRatio(l.fg, l.behind) < STATUS_MIN_CONTRAST);
+    if (low.length) add('status-low-contrast', `${low.length} label${low.length === 1 ? '' : 's'} under ${STATUS_MIN_CONTRAST}:1 (worst ${Math.min(...low.map((l) => contrastRatio(l.fg, l.behind))).toFixed(1)}:1)`, 'css');
+  }
+  if (st.colorOnly) add('status-color-only', `${st.colorOnly} coloured dot${st.colorOnly === 1 ? '' : 's'} with no status word next to ${st.colorOnly === 1 ? 'it' : 'them'}`, 'jsx');
+  const verdict = issues.length ? 'FIX' : L.length < STATUS_MIN_LABELS ? 'NONE' : 'OK';
+  return { verdict, labels: L.length, ...(st.capped ? { capped: true } : {}), words, styles, distinctColors: colors, issues };
 }
 
 function analyzeLayout(L, vw) {
@@ -1317,7 +1510,7 @@ async function scanPage(cdp, url, opts) {
   await cdp.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true });
   await sleep(500);
   const lay = opts.noLayout ? 'null' : `(${layoutProbe.toString()})(${opts.width}, ${opts.height})`;
-  const inv = opts.inventory ? `(${inventoryProbe.toString()})()` : 'null';
+  const inv = opts.inventory ? `(${inventoryProbe.toString()})(${!!opts.status}, ${JSON.stringify({ words: STATUS_X_WORDS.source, spread: STATUS_NEUTRAL_SPREAD })})` : 'null';
   const r = await cdp.send('Runtime.evaluate', { expression: `({ raw: (${collect.toString()})(${!opts.noPalette}), layout: ${lay}, inventory: ${inv} })`, returnByValue: true, awaitPromise: true });
   if (r.exceptionDetails) throw new Error('collector failed: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text));
   const out = r.result.value;
@@ -1394,7 +1587,7 @@ async function runBrowser(targets, opts) {
         if (!/^https?:\/\//i.test(t) && !existsSync(t)) throw new Error(`no such file: ${t}`);
         const { raw, layout, inventory, png } = await withTimeout(scanPage(cdp, toUrl(t), opts), TARGET_TIMEOUT_MS, t);
         const res = { target: t, ...analyze(raw), layout: layout ? analyzeLayout(layout, opts.width) : null };
-        if (inventory) res.inventory = analyzeInventory(inventory);
+        if (inventory) res.inventory = analyzeInventory(inventory, opts.status);
         if (opts.shot) {
           res.shot = targets.length > 1 ? opts.shot.replace(/(\.png)?$/i, `-${idx + 1}$1`) : opts.shot;
           writeFileSync(res.shot, Buffer.from(png, 'base64'));
@@ -1476,6 +1669,11 @@ function printInventory(inv) {
   console.log(`\nINVENTORY ${inv.verdict}  (${seen.join(', ') || 'no components found'})`);
   inv.fit.forEach((f) => console.log(`- ${f.rule}: ${f.type} "${f.label}" ${f.detail} -> ${f.suggest}`));
   if (!inv.fit.length) console.log('- every component matches the shape of its data');
+  const s = inv.status;
+  if (s) {
+    console.log(`\nSTATUS ${s.verdict}  (${s.labels}${s.capped ? '+' : ''} labels, ${s.words.length} words, ${s.styles} styles, ${s.distinctColors} colours)`);
+    s.issues.forEach((i) => console.log(`- ${i.rule}: ${i.detail} -> ${i.fix === 'css' ? 'CSS fix (Mode B)' : 'markup fix (Mode C brief)'} (${i.ref})`));
+  }
 }
 
 const VISIBLE_TEXT = { VISIBLE: '(>=8%)', SUBTLE: '(3-8%)', 'NOT VISIBLE': '(<3%)' };
@@ -1547,6 +1745,7 @@ function aggregate(results) {
   const inventory = invs.length ? {
     verdict: invs.some((r) => r.inventory.verdict === 'SWAP') ? 'SWAP' : 'FIT',
     perTarget: invs.map((r) => ({ target: r.target, verdict: r.inventory.verdict })),
+    ...(invs.some((r) => r.inventory.status) ? { status: invs.filter((r) => r.inventory.status).reduce((w, r) => (STATUS_RANK[r.inventory.status.verdict] > STATUS_RANK[w] ? r.inventory.status.verdict : w), 'NONE') } : {}),
   } : null;
   return { targets: ok.length, violations: V, score: headline.score, verdict, headline, palette, layout, ...(inventory ? { inventory } : {}) };
 }
@@ -1569,6 +1768,7 @@ function printCompare(before, after, targets, palAfter, layAfter, invAfter) {
     const swaps = (a) => a.perTarget.filter((t) => t.verdict === 'SWAP').length;
     const n = invAfter.perTarget.length;
     console.log(`Inventory: ${swaps(ib)}/${ib.perTarget.length} SWAP (${ib.verdict}) -> ${swaps(invAfter)}/${n} SWAP (${invAfter.verdict})`);
+    if (ib.status && invAfter.status) console.log(`Status: ${ib.status} -> ${invAfter.status}`);
   }
   console.log(`\nOverall: ${d < 0 ? 'IMPROVED' : d > 0 ? 'WORSE' : 'UNCHANGED'} (violations ${b.violations ?? '-'} -> ${after.violations}, score ${b.score ?? '-'} -> ${after.score})`);
 }
@@ -1766,7 +1966,7 @@ function printSource(r) {
 
 // ---- CLI --------------------------------------------------------------------
 function parseArgs(argv) {
-  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, height: 900, noLayout: false, shot: null, visibleChange: null, json: null, compare: null, src: null, help: false, inventory: false, storageState: null, block: [], auth: null };
+  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, height: 900, noLayout: false, shot: null, visibleChange: null, json: null, compare: null, src: null, help: false, inventory: false, status: false, storageState: null, block: [], auth: null };
   const val = (i, flag) => {
     if (i + 1 >= argv.length) throw new Error(`${flag} needs a value`);
     return argv[i + 1];
@@ -1784,6 +1984,7 @@ function parseArgs(argv) {
     else if (a === '--src') o.src = val(i++, a);
     else if (a === '--no-layout') o.noLayout = true;
     else if (a === '--inventory') o.inventory = true;
+    else if (a === '--status') o.status = o.inventory = true;
     else if (a === '--storage-state') o.storageState = val(i++, a);
     else if (a === '--block') o.block.push(val(i++, a));
     else if (a === '--shot') o.shot = val(i++, a);
