@@ -1,6 +1,6 @@
 # Content rules (page summary, KPI context, dates, groups, activity, empty states)
 
-Structure and wording of the text a dashboard shows. Word-level rules (labels, tone, sentence case, no hype) live in `copy.md`; do not repeat them here. Word lists are English: on pages in other languages the status, date and person rules find nothing (`kpi-no-context` and `no-page-summary` count letters and words, so they still run), and the rules below are a judgment pass there.
+Structure and wording of the text a dashboard shows. Word-level rules (labels, tone, sentence case, no hype) live in `copy.md`; do not repeat them here. Label and badge checks (`status-*`) are structural and work in any language. The remaining word lists are English: on pages in other languages the state-column fit rules, date and person rules find nothing (`kpi-no-context` and `no-page-summary` count letters and words, so they still run), and the rules below are a judgment pass there.
 
 ## Rules
 
@@ -22,7 +22,7 @@ Structure and wording of the text a dashboard shows. Word-level rules (labels, t
 | `no-page-summary` | advisory (does not change a verdict) | `scan.mjs --status` |
 | Everything else in this file | judgment, no scan | review by hand |
 
-State checks are English-only and heuristic: hits are evidence to confirm by hand, misses are not proof. Text in another language is not matched by the status, date and person rules; apply them manually. Known false positives: changelog-style dates read as a deadline list, Title Case project names under a "Team" heading read as people, and a div-built sidebar is not excluded as navigation.
+Label and badge checks are structural; the state-column, date and person checks are English-only and heuristic. Hits are evidence to confirm by hand, misses are not proof. Text in another language is not matched by the state-column, date and person rules; apply them manually. Known false positives: changelog-style dates read as a deadline list, Title Case project names under a "Team" heading read as people, and a div-built sidebar is not excluded as navigation.
 
 ## Patterns
 

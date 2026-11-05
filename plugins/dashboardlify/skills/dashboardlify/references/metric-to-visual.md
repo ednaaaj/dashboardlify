@@ -80,4 +80,4 @@ Pick the visual from the data shape, not from taste. Colors: `--chart-1..6` cate
 | search-no-shortcut | Search input with no kbd and no "Ctrl K", "⌘K" or "/" hint (advisory) | Show a kbd hint ([content.md](content.md)) | none |
 | no-page-summary | No sentence of 6+ words within 120px under the h1 (advisory) | One summary sentence that carries the numbers ([content.md](content.md)) | none |
 
-The last seven rules need `--status` (it implies `--inventory`). They are English-only and heuristic: confirm each hit by hand. `map-check`, `search-no-shortcut` and `no-page-summary` are advisory and do not change the verdict.
+The last seven rules need `--status` (it implies `--inventory`). They are heuristic (the state-column, date and person tests use English word lists): confirm each hit by hand. `map-check`, `search-no-shortcut` and `no-page-summary` are advisory and do not change the verdict.

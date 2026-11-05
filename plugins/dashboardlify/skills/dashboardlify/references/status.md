@@ -1,6 +1,6 @@
 # Status
 
-Status words (label text such as "Overdue", "Paid") get one tone, one pill style, one colour per word, everywhere in the app. Tokens live in [tokens.css](tokens.css); badge geometry in [components.md](components.md#badge--status-pill); palette ramps in [palettes/palettes.json](palettes/palettes.json) (`status`, `scales`).
+Repeated short labels and badges (a state column, a tag, a category chip: any words, any language) get one pill style, one colour per value, and few colours overall, everywhere in the app. `scan.mjs --status` finds them structurally: short leaf text (up to 24 characters, 1-3 words, not a number or date) in a table column or list slot where a few values repeat, or anything styled as a pill, badge, chip or tag; legends, KPI cards, nav, buttons and headings are skipped. The English word-to-tone table below is only a colour hint for recommendations; unknown words are treated as neutral. Tokens live in [tokens.css](tokens.css); badge geometry in [components.md](components.md#badge--status-pill); palette ramps in [palettes/palettes.json](palettes/palettes.json) (`status`, `scales`).
 
 ## Word to tone
 
@@ -20,7 +20,8 @@ Rules for the mapping:
 - A word has one tone for the whole app. If "Pending" is neutral in one table it is neutral everywhere.
 - Words that mean a different thing across domains ("Active", "Open") pick the tone once and keep it.
 - Max 5 distinct status colours on a screen (one per tone). Neutral counts as one.
-- Detection is English-only and heuristic: other languages are not recognised, and a word in a non-status context (a name, a product) can be a false hit. Confirm hits by hand.
+- Detection is structural, so any words work. `status-plain` is stricter: it fires only when a plain (no pill) column looks like a state, meaning its heading matches status, state, stage, priority, health, result or risk, or at least half its values are in the English word list, or its values carry different semantic colours while the rest of the page uses pills. A plain Category column is fine. The word table above stays English-only; other languages get tone "neutral" in the hint.
+- Heuristic: a plain grey non-state column (owners, regions) is ignored; a coloured or pill-styled one is checked for colour (and for style when it is a pill), and a state column with unusual words and no state heading stays quiet. Confirm hits by hand.
 
 ## Pill recipe
 

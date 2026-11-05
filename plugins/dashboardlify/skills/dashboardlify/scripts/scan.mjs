@@ -31,7 +31,7 @@ const INV_CHART_MIN_W = 280; // chart-undersized
 const INV_CHART_MIN_H = 160;
 const INV_SPARK_MAX_H = 48; // charts this short are sparklines: exempt
 // Status system and content rules (--status, implies --inventory). Tune against examples/northwind-team*.html.
-// ponytail: English-only status words; a localized dashboard needs its own list (add it here)
+// ponytail: English-only word list, used only as a hint (tone, and one signal for status-plain); label detection is structural
 const STATUS_X_WORDS = /^(on track|at risk|behind|ahead|due today|due soon|overdue|late|paid|unpaid|pending|refunded|active|inactive|open|closed|done|blocked|in review|on hold|scheduled|failed|delayed|complete|incomplete|cancell?ed)$/i;
 const STATUS_MIN_LABELS = 3; // fewer status labels than this: verdict NONE (no status system to judge)
 const STATUS_MAX_STYLES = 1; // status-mixed-style: one style key (pill|text, bg, radius bucket, weight) for all labels
@@ -82,7 +82,7 @@ Usage:
                 SWAP = a component shows its data in the wrong shape (table of a time series, 3-number table, counts as a list...)
   --status      implies --inventory; also judge the status system (labels, pills, colours, contrast) and the content/domain rules
                 (STATUS OK|FIX|NONE; fit rules table-status-to-rows, flat-dates-to-groups, kpi-no-context, people-list-to-capacity,
-                long-list-no-filter; advisory: search-no-shortcut, no-page-summary). English-only word lists; hits are evidence, confirm by hand.
+                long-list-no-filter; advisory: search-no-shortcut, no-page-summary). Label detection is structural (repeated short text or pill-styled text, any words); the English word list is only a colour hint; hits are evidence, confirm by hand.
   --storage-state <file>  log in without a form: Playwright-style {cookies, origins[].localStorage} or a bare cookie array
                 (values are sent to the browser only; the scan prints counts, never values)
   --block <pattern>  block matching requests (repeatable, '*' wildcard) so the page shows its error/empty state
@@ -667,7 +667,6 @@ function inventoryProbe(deep, cfg) {
   // ponytail: person/date detection is heuristic and English-only (capitalised names, English month/relative words);
   // it needs an avatar or a people-ish heading to count a person. Hits are evidence, confirm by hand.
   const SX = new RegExp(`(?:${STATUS.source})|(?:${cfg.words})`, 'i');
-  const ANYWORD = new RegExp(`\\b(?:${STATUS.source.slice(2, -2)}|${cfg.words.slice(2, -2)})\\b`, 'i');
   const SKIP = 'nav,[role=navigation],button,th,thead,[role=tab],[role=tablist],[role=columnheader],h1,h2,h3,h4,h5,h6,a,option,select,caption,legend,[role=menu],[role=heading]';
   const hex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
   const hexOf = (s) => { const m = (s || '').match(/^rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat); return p.length >= 3 && p.every(Number.isFinite) ? hex(p[0], p[1], p[2]) : null; };
@@ -712,27 +711,70 @@ function inventoryProbe(deep, cfg) {
     }
   });
 
-  // status labels: short leaf text that is a status word, outside nav/buttons/headers/tabs/charts
+  // categorical labels (structural, any words, any language): short leaf text that either sits in a column / list slot where a few values
+  // repeat, or is styled as a pill / badge / chip / tag. Outside nav, buttons, headers, headings, legends, KPI cards and charts.
+  // ponytail: a column of repeated short text that is not a state (a plain Category column) is counted here and judged by the same style rules; status-plain is the only rule gated on "looks like a state"
   const behind = (el) => { for (let a = el; a; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.backgroundImage !== 'none') return null; const al = alpha(cs.backgroundColor); if (al >= 0.99) return hexOf(cs.backgroundColor); if (al > 0) return null; } return /dark/.test(getComputedStyle(document.documentElement).colorScheme) ? null : '#ffffff'; };
-  const labels = [];
-  let capped = false;
   const kpiEls = out.map((c, i) => (c.type === 'kpi' ? outEl[i] : null)).filter(Boolean);
-  for (const el of document.querySelectorAll('body *')) {
-    if (el instanceof SVGElement || /^(SCRIPT|STYLE|OPTION)$/.test(el.tagName)) continue;
-    const t = own(el);
-    if (!t || t.length > 24 || !SX.test(t) || el.closest(SKIP + ',[class*=legend i],[class*=swatch i]') || inChart(el) || !vis(el)) continue;
-    if (kpiEls.some((k) => k.contains(el))) continue; // "Delivered" as a KPI label is not a status marker
-    // "Pending 12": a label followed by a bare number is a count (counts-to-bar), not a status marker
-    // ponytail: only li and rows of <= 2 cells are checked; a custom div row with label + count still counts as a status label
-    const row = el.closest('li,tr,[role=row]');
-    if (row && (row.tagName === 'LI' || cellsOf(row).length <= 2) && txt(row).startsWith(txt(el)) && /^[\s\d,.%]*$/.test(txt(row).slice(txt(el).length))) continue;
-    let pill = null;
+  const EXCL = SKIP + ',[class*=legend i],[class*=swatch i]';
+  const PILLCLS = /(^|[\s_-])(badge|chip|pill|tag|status|label)([\s_-]|$)/;
+  const labelText = (t) => !!t && t.length <= 24 && t.split(/\s+/).length <= 3 && /\p{L}/u.test(t) && !NUMK.test(t) && !DATE.test(t);
+  const usable = (el) => !(el instanceof SVGElement) && !/^(SCRIPT|STYLE|OPTION)$/.test(el.tagName) && !el.closest(EXCL) && !inChart(el) && !kpiEls.some((k) => k.contains(el)) && !!vis(el);
+  const cmap = new Map(); // element -> { g: group id, gh: column header }
+  const groups = [];
+  const addGroup = (els, gh) => {
+    const vals = els.map((x) => own(x).toLowerCase()), distinct = new Set(vals).size;
+    if (els.length < 3 || distinct > Math.max(6, 0.4 * els.length) || distinct === els.length) return;
+    groups.push(gh); els.forEach((x) => cmap.set(x, { g: groups.length - 1, gh }));
+  };
+  const leafOf = (cell) => { let x = cell; while (!own(x) && x.children.length === 1 && txt(x.children[0]) === txt(cell)) x = x.children[0]; return own(x) === txt(cell) ? x : null; };
+  document.querySelectorAll('table,[role=table],[role=grid]').forEach((tb) => {
+    const rs = [...tb.querySelectorAll('tr,[role=row]')].filter((r) => r.closest('table,[role=table],[role=grid]') === tb).map(cellsOf);
+    const head = rs.find((cs) => cs.length && cs.every((x) => x.tagName === 'TH' || /header/.test(x.getAttribute('role') || ''))) || [];
+    const body = rs.filter((cs) => cs.length && cs !== head);
+    for (let k = 0; k < Math.max(0, ...body.map((r) => r.length)); k++) {
+      const els = body.map((r) => r[k] && leafOf(r[k])).filter((x) => x && labelText(own(x)) && usable(x));
+      if (els.length === body.length) addGroup(els, head[k] ? txt(head[k]) : '');
+    }
+  });
+  document.querySelectorAll('ul,ol,[role=list]').forEach((ul) => {
+    const lis = [...ul.children].filter((li) => li.tagName === 'LI' || li.getAttribute('role') === 'listitem');
+    const slots = new Map();
+    lis.forEach((li) => [...li.querySelectorAll('*')].forEach((x) => {
+      if (!labelText(own(x)) || !usable(x)) return;
+      const key = x.tagName + '|' + tokens(x); if (!slots.has(key)) slots.set(key, []); slots.get(key).push(x);
+    }));
+    slots.forEach((els) => { if (els.length === lis.length && new Set(els.map((x) => x.closest('li,[role=listitem]'))).size === els.length) addGroup(els, ''); });
+  });
+  const pillOf = (el) => { // nearest box (el or up to 2 ancestors with the same text) that is styled as a pill
     for (let a = el, n = 0; a && a !== document.body && n < 3 && txt(a) === txt(el); a = a.parentElement, n++) {
       const r = a.getBoundingClientRect(), cs = getComputedStyle(a);
       if (a.matches('td,th,li,tr,[role=cell],[role=gridcell],main,section') || r.height > 40 || r.width > 200) break;
       const bw = ['Top', 'Right', 'Bottom', 'Left'].some((s) => px(cs['border' + s + 'Width']) > 0 && cs['border' + s + 'Style'] !== 'none');
-      if (alpha(cs.backgroundColor) >= 0.05 || (bw && px(cs.borderTopLeftRadius) >= 4)) { pill = a; break; }
+      if (alpha(cs.backgroundColor) >= 0.05 || (bw && px(cs.borderTopLeftRadius) >= 4)) return a;
     }
+    return null;
+  };
+  const pillish = (el) => {
+    for (let a = el, n = 0; a && a !== document.body && n < 3 && txt(a) === txt(el); a = a.parentElement, n++) {
+      if (PILLCLS.test(tokens(a)) && !a.matches('td,th,li,tr,main,section,label,form') && pillOf(el)) return true; // the class alone is not enough: card-label / form-label have no box
+    }
+    const p = pillOf(el); if (!p) return false;
+    const r = p.getBoundingClientRect(), cs = getComputedStyle(p), rad = cs.borderTopLeftRadius;
+    const rr = rad.endsWith('%') ? (r.height * parseFloat(rad)) / 100 : px(rad);
+    return alpha(cs.backgroundColor) >= 0.05 && rr >= r.height / 2 - 1 && !(Math.abs(r.width - r.height) < 4 && txt(el).length <= 3); // round initials are avatars
+  };
+  const labels = [];
+  let capped = false;
+  for (const el of document.querySelectorAll('body *')) {
+    const grp = cmap.get(el);
+    const t = own(el);
+    if (!grp && (!labelText(t) || !usable(el) || !pillish(el))) continue;
+    // "Pending 12": a label followed by a bare number is a count (counts-to-bar), not a status marker
+    // ponytail: only li and rows of <= 2 cells are checked; a custom div row with label + count still counts as a label
+    const row = el.closest('li,tr,[role=row]');
+    if (row && (row.tagName === 'LI' || cellsOf(row).length <= 2) && txt(row).startsWith(txt(el)) && /^[\s\d,.%]*$/.test(txt(row).slice(txt(el).length))) continue;
+    const pill = pillOf(el);
     const cs = getComputedStyle(el), fg = alpha(cs.color) >= 0.99 ? hexOf(cs.color) : null;
     let style = 'text/' + (+cs.fontWeight >= 600 ? 'b' : 'n'), bg = null;
     if (pill) {
@@ -741,7 +783,7 @@ function inventoryProbe(deep, cfg) {
       bg = alpha(pcs.backgroundColor) >= 0.05 ? hexOf(pcs.backgroundColor) : null;
       style = `pill/${bg ? 'bg' : 'outline'}/${rr >= h / 2 - 1 ? 'full' : rr >= 6 ? 'md' : rr > 0 ? 'sm' : 'none'}/${+cs.fontWeight >= 600 ? 'b' : 'n'}`;
     }
-    labels.push({ word: t.toLowerCase(), pill: !!pill, style, fg, bg, sig: bg || fg || cs.color, behind: pill && bg && alpha(getComputedStyle(pill).backgroundColor) >= 0.99 ? bg : behind(el) });
+    labels.push({ word: t.toLowerCase(), pill: !!pill, style, fg, bg, sig: bg || fg || cs.color, behind: pill && bg && alpha(getComputedStyle(pill).backgroundColor) >= 0.99 ? bg : behind(el), g: grp ? grp.g : -1, gh: grp ? grp.gh : '' });
     if (labels.length >= 500) { capped = true; break; }
   }
   // colour-only dots: a small chromatic round box in a table cell / list item with no status word beside it
@@ -755,7 +797,7 @@ function inventoryProbe(deep, cfg) {
     const host = el.closest('td,[role=cell],[role=gridcell],li');
     if (!host || inChart(el) || host.closest('nav,[role=navigation],[class*=legend i],[class*=swatch i]') || !vis(el)) continue;
     const ht = txt(host);
-    if (host.tagName === 'LI' ? ht === '' : !ANYWORD.test(ht)) colorOnly++;
+    if (host.tagName === 'LI' ? ht === '' : !/\p{L}/u.test(ht)) colorOnly++;
   }
   // advisory: search input without a shortcut hint
   const searches = [...document.querySelectorAll('input')].filter((i) => vis(i) && (i.type === 'search' || /search/i.test(`${i.placeholder} ${i.getAttribute('aria-label') || ''}`)));
@@ -839,41 +881,63 @@ function analyzeInventory(raw, deep) {
   return { verdict, counts, components: comps, fit, ...(st ? { status: analyzeStatus(st) } : {}) };
 }
 
-// ---- Status analysis: labels -> issues, verdict ------------------------------------------------
+// ---- Status analysis: categorical labels -> issues, verdict ------------------------------------------
+// Detection is structural (see inventoryProbe). The English word list is only a hint: tone for recommendations, and one of three signals
+// that a column looks like a state.
+const STATUS_TONES = [
+  ['green', /^(on track|ahead|paid|active|done|complete|completed|approved|success|resolved|healthy|ok|delivered|shipped)$/i],
+  ['amber', /^(at risk|due today|due soon|pending|in review|on hold|delayed|behind|incomplete|processing|draft|queued|warning)$/i],
+  ['red', /^(late|overdue|unpaid|failed|blocked|rejected|error|cancell?ed|refunded)$/i],
+  ['blue', /^(open|new|in progress|scheduled|running)$/i],
+  ['neutral', /^(closed|inactive|stopped|returned)$/i],
+];
+const STATUS_HEADER = /status|state|stage|priority|health|result|risk/i;
+const STATUS_PLAIN_SHARE = 0.5; // status-plain: share of a column's labels that must be word-list hits (alternative to the header / colour signals)
 function analyzeStatus(st) {
-  const L = st.labels;
-  const words = [];
-  for (const l of L) {
-    let w = words.find((x) => x.word === l.word);
-    if (!w) words.push(w = { word: l.word, count: 0, colors: [], tone: '' });
-    w.count++;
-    if (!w.colors.includes(l.sig)) w.colors.push(l.sig);
-    if (!w.fg) w.fg = l.fg;
-  }
+  const all = st.labels;
   const spreadOf = (h) => { const n = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); return Math.max(...n) - Math.min(...n); };
   const hexSig = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c : null);
-  words.forEach((w) => {
-    const h = hexSig(w.fg) || w.colors.map(hexSig).find(Boolean);
-    w.tone = !h || spreadOf(h) < STATUS_NEUTRAL_SPREAD ? 'grey' : hueName(hexToOklch(h).H);
+  const chromatic = (l) => !!(l.fg && hexSig(l.fg) && spreadOf(l.fg) >= STATUS_NEUTRAL_SPREAD);
+  const grey = (l) => !l.pill && l.fg && spreadOf(l.fg) < STATUS_NEUTRAL_SPREAD;
+  const pillsAround = all.some((l) => l.pill);
+  // columns / list slots: is it a state, and is it plain text?
+  const groups = new Map();
+  all.forEach((l) => { if (l.g >= 0) (groups.get(l.g) || groups.set(l.g, []).get(l.g)).push(l); });
+  const plainGroups = [], quiet = new Set(), unstyled = new Set();
+  groups.forEach((G) => {
+    const hits = G.filter((l) => STATUS_X_WORDS.test(l.word)).length / G.length;
+    const colours = new Set(G.map((l) => l.sig)).size;
+    const semantic = G.some(chromatic) && colours > 1;
+    const plain = G.every((l) => !l.pill);
+    const stateLike = hits >= STATUS_PLAIN_SHARE || STATUS_HEADER.test(G[0].gh) || (semantic && pillsAround);
+    if (plain && stateLike && (G.every(grey) || (semantic && pillsAround))) plainGroups.push(G);
+    else if (plain && !stateLike) { if (G.every(grey)) G.forEach((l) => quiet.add(l)); else G.forEach((l) => unstyled.add(l)); } // a plain non-state column is fine: grey ones are not judged, coloured ones only for colour
   });
-  words.forEach((w) => delete w.fg);
-  const styles = new Set(L.map((l) => l.style)).size;
+  const L = all.filter((l) => !quiet.has(l));
+  const words = [];
+  for (const l of all) {
+    let w = words.find((x) => x.word === l.word);
+    if (!w) words.push(w = { word: l.word, count: 0, colors: [], tone: (STATUS_TONES.find(([, re]) => re.test(l.word)) || ['neutral'])[0] });
+    w.count++;
+    if (!w.colors.includes(l.sig)) w.colors.push(l.sig);
+  }
+  const styleSet = new Set(L.filter((l) => !unstyled.has(l)).map((l) => l.style)), styles = styleSet.size;
   const colors = new Set(L.map((l) => l.sig)).size;
+  const shownStyles = new Set(all.map((l) => l.style)).size, shownColors = new Set(all.map((l) => l.sig)).size;
   const issues = [];
   const add = (rule, detail, fix) => issues.push({ rule, detail, fix, ref: 'status.md' });
-  if (L.length >= STATUS_MIN_LABELS) {
-    const grey = (l) => !l.pill && l.fg && spreadOf(l.fg) < STATUS_NEUTRAL_SPREAD;
-    if (L.every(grey)) add('status-plain', `${L.length} status labels are plain grey text, no pill`, 'jsx');
-    if (styles > STATUS_MAX_STYLES) add('status-mixed-style', `${styles} label styles (${[...new Set(L.map((l) => l.style))].join(', ')})`, 'css');
-    const split = words.filter((w) => w.colors.length > 1);
-    if (split.length) add('status-word-colors', `${split.map((w) => `"${w.word}" in ${w.colors.length} colours`).join(', ')}`, 'css');
-    if (colors > STATUS_MAX_COLORS) add('status-too-many-colors', `${colors} colours across status labels (max ${STATUS_MAX_COLORS})`, 'css');
+  if (all.length >= STATUS_MIN_LABELS) {
+    if (plainGroups.length) add('status-plain', plainGroups.map((G) => `${G.length} labels${G[0].gh ? ` in "${G[0].gh}"` : ''} are plain ${G.every(grey) ? 'grey ' : ''}text, no pill`).join('; '), 'jsx');
+    if (styles > STATUS_MAX_STYLES) add('status-mixed-style', `${styles} label styles (${[...styleSet].join(', ')})`, 'css');
+    const split = words.filter((w) => w.colors.length > 1 && L.some((l) => l.word === w.word));
+    if (split.length) add('status-word-colors', split.map((w) => `"${w.word}": same value in more than one colour (${w.colors.length})`).join(', '), 'css');
+    if (colors > STATUS_MAX_COLORS) add('status-too-many-colors', `${colors} colours across labels (max ${STATUS_MAX_COLORS})`, 'css');
     const low = L.filter((l) => l.fg && l.behind && contrastRatio(l.fg, l.behind) < STATUS_MIN_CONTRAST);
     if (low.length) add('status-low-contrast', `${low.length} label${low.length === 1 ? '' : 's'} under ${STATUS_MIN_CONTRAST}:1 (worst ${Math.min(...low.map((l) => contrastRatio(l.fg, l.behind))).toFixed(1)}:1)`, 'css');
   }
   if (st.colorOnly) add('status-color-only', `${st.colorOnly} coloured dot${st.colorOnly === 1 ? '' : 's'} with no status word next to ${st.colorOnly === 1 ? 'it' : 'them'}`, 'jsx');
-  const verdict = issues.length ? 'FIX' : L.length < STATUS_MIN_LABELS ? 'NONE' : 'OK';
-  return { verdict, labels: L.length, ...(st.capped ? { capped: true } : {}), words, styles, distinctColors: colors, issues };
+  const verdict = issues.length ? 'FIX' : all.length < STATUS_MIN_LABELS ? 'NONE' : 'OK';
+  return { verdict, labels: all.length, ...(st.capped ? { capped: true } : {}), words, styles: shownStyles, distinctColors: shownColors, issues };
 }
 
 function analyzeLayout(L, vw) {

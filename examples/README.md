@@ -65,8 +65,8 @@ INVENTORY SWAP  (table 1, kpi 4, list 2)
 - search-no-shortcut: form "" 1 search input without a shortcut hint -> show a kbd hint (Ctrl K or /)
 - no-page-summary: page "" no sentence of 6+ words within 120px under the h1 -> one summary sentence that carries the numbers
 
-STATUS FIX  (9 labels, 3 words, 1 styles, 1 colours)
-- status-plain: 9 status labels are plain grey text, no pill -> markup fix (Mode C brief) (status.md)
+STATUS FIX  (18 labels, 9 words, 1 styles, 2 colours)
+- status-plain: 9 labels in "Status" are plain grey text, no pill -> markup fix (Mode C brief) (status.md)
 ```
 
 `northwind-team-designed.html` (same data, designed) prints:
@@ -75,7 +75,7 @@ STATUS FIX  (9 labels, 3 words, 1 styles, 1 colours)
 INVENTORY FIT  (table 1, kpi 4, list 3)
 - every component matches the shape of its data
 
-STATUS OK  (9 labels, 3 words, 1 styles, 3 colours)
+STATUS OK  (18 labels, 9 words, 2 styles, 4 colours)
 ```
 
-Both score 0 / LEAVE on the spacing metrics. The difference is status, structure and content, which a spacing pass cannot produce. Labels print empty (`""`) for tables and lists whose heading sits outside the card. Detection is English-only and heuristic.
+Both score 0 / LEAVE on the spacing metrics. The difference is status, structure and content, which a spacing pass cannot produce. Labels print empty (`""`) for tables and lists whose heading sits outside the card. The label count includes the Owner column (names that repeat), which is counted but not judged because it does not look like a state. Label detection is structural (repeated short text in a column, or pill-styled text) and works for any words; the fit rules that look for a state column and the date and person rules still use English word lists, and all of it is heuristic.

@@ -115,7 +115,7 @@ node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs <url|file.html>
 node plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs --src <dir>   # source-only estimate
 ```
 
-Add `--status` to also check status labels (implies `--inventory`; prints `STATUS OK|FIX|NONE`). Add `--inventory` to also list what each page shows and whether each component suits its data (`INVENTORY FIT|SWAP`), `--storage-state <file>` to scan a logged-in role with a saved state file (values are never printed), and `--block <pattern>` to force an error or empty state. `--src` also prints a ROLES block with the roles, guards and routes it finds.
+Add `--status` to also check repeated labels and badges (implies `--inventory`; prints `STATUS OK|FIX|NONE`). Add `--inventory` to also list what each page shows and whether each component suits its data (`INVENTORY FIT|SWAP`), `--storage-state <file>` to scan a logged-in role with a saved state file (values are never printed), and `--block <pattern>` to force an error or empty state. `--src` also prints a ROLES block with the roles, guards and routes it finds.
 
 Needs Node 22 and Chrome. No installs. `--combo calm|paper|brand` picks the colour combo the PALETTE block reports (calm for dense data, paper for warm or consumer products, brand for brand-heavy ones). It counts the things that make a screen look generated: distinct font sizes, radii and colours, off-scale spacing, shadows, gradients, uppercase text, mixed icon sizes, low-contrast text, and long or looping motion.
 
@@ -146,27 +146,23 @@ Example delta after a tighten run (illustrative numbers):
 
 The detection is heuristic. Scan output is evidence, not a verdict: the run labels false positives.
 
-## Status, content and identity (v0.5.0)
+## Design checks beyond spacing (v0.5.0)
 
-A page can have perfect spacing and still look generic. Spacing, type scale and radii are the part a token pass can fix. The rest is status, content and identity.
+A page can have perfect spacing and still look generic. Spacing, type scale and radii are the part a token pass can fix. These checks cover the rest, and they work on any app, any words, any language:
 
-**Status system.** Every status label (on track, at risk, overdue, paid, pending...) uses one pill style, with semantic colour: the same word always gets the same colour, few colours overall, and text contrast of at least 4.5:1 against its background. Colour is never the only signal: a coloured dot always sits next to the word. `--status` flags plain grey status text, mixed pill styles, one word in several colours, too many colours, low contrast and colour-only dots. Rules: `references/status.md`.
+- **Identity presets** (`references/identity.md`): editorial (serif headings and KPI numerals, dark warm sidebar, amber accent), product (plain sans, light sidebar, blue accent), ink (slate sidebar, teal accent). `improve` and `rework` show 2 or 3 of them and wait for your choice; none is applied silently. Mode B (`tighten`) never changes the font family, sidebar colour or accent hue.
+- **Hierarchy.** One thing leads each card and each page: a KPI card with a label and a number but no context line, or a page with no summary sentence under the title, has no second level to read.
+- **Consistency of repeated labels and badges.** `--status` finds any repeated short label or badge, any words: short text where a few values repeat in a table column or list slot, and anything styled as a pill, badge, chip or tag. It then checks them as one system: one style, one colour per value, few colours overall, contrast of at least 4.5:1, and no coloured dot standing alone. Rules: `references/status.md`.
+- **Grouping and density.** A long table gets filter tabs with counts; a flat list of dated items gets groups (Overdue, Today, This week); a table with a state column and a percent column becomes project rows with a progress bar and a pill; a people list with a number each becomes capacity bars.
+- **Content around the numbers.** A context line under each KPI (change or next step), one summary sentence under the page title that carries the numbers, relative dates ("2 days overdue") next to the absolute one. The last two are advisory: a search input without a shortcut hint, and a page without a summary sentence, never change a verdict.
 
-**Component rules** (each is evidence from the scan, confirmed by hand):
+A column of repeated labels is only called a missing status system when it looks like a state: its heading says status, stage, priority, health, result or risk, or most of its values are known state words, or its values carry different semantic colours while the rest of the page uses pills. A plain Category column is left alone.
 
-- Status table with a percent column becomes project rows with a progress bar and a status pill.
-- Flat list of dates becomes groups: Overdue, Today, This week.
-- KPI card gets a context line (change or next step), not just a label and a number.
-- People list with a number each becomes capacity bars with state labels (Light, Balanced, Heavy, Over).
-- Long list with a status column gets filter tabs with counts.
+**What each layer can and cannot do.** Spacing fixes alone cannot add a status system, a summary sentence, progress bars or a look of its own: the plain and designed fixtures in `examples/` both score 0 on the spacing metrics. Identity, labels and content change those. They need Mode C (markup changes) or an approved preset.
 
-**Content rules.** One summary sentence under the page title that carries the numbers. Relative dates ("2 days overdue") next to the absolute one. Advisory only, no verdict change: a search input without a shortcut hint, and a page without a summary sentence.
+Colour hints: a small English word list (on track, late, paid...) only suggests a tone (green, amber, red, blue, neutral) for recommendations; it is not needed for detection.
 
-**Identity presets** (`references/identity.md`): editorial (serif headings and KPI numerals, dark warm sidebar, amber accent), product (plain sans, light sidebar, blue accent), ink (slate sidebar, teal accent). `improve` and `rework` show 2 or 3 of them and wait for your choice; none is applied silently. Mode B (`tighten`) never changes the font family, sidebar colour or accent hue.
-
-**What each layer can and cannot do.** Spacing fixes alone cannot add a status system, a summary sentence, progress bars or a look of its own: the plain and designed fixtures in `examples/` both score 0 on the spacing metrics. Identity, status and content change those. They need Mode C (markup changes) or an approved preset.
-
-Limits: detection is English-only (status words, dates, names) and heuristic. Scan output is evidence, not a verdict; the run labels false positives. Table and list labels print empty in `--status` output when the heading sits outside the card.
+Limits: detection is heuristic. The fit rules that look for a state column (`table-status-to-rows`, `long-list-no-filter`) and the date and person rules still use English word lists. Scan output is evidence, not a verdict; the run labels false positives. Table and list labels print empty in `--status` output when the heading sits outside the card.
 
 ## Why did nothing change?
 

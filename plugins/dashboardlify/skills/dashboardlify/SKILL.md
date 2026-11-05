@@ -32,7 +32,7 @@ The scan gives two verdicts. The value verdict (table above) measures sizes, col
 
 Visible-change gate: every TIGHTEN or ARRANGE run saves a before screenshot (`--shot before.png`) and ends with `--visible-change before.png`. VISIBLE (>= 8% of the first screen changed) is success. SUBTLE (3-8%) is reported as subtle. Under 3% say "not visible" and never claim success; INCOMPARABLE (screenshots of different width, exit 1; same width with different height is cropped) is not success either. `--shot` and `--visible-change` must be different paths (exit 2 if equal); diagnose: override lost on specificity or import order, wrong files, dead CSS, or the problem is layout and not values.
 
-Any INVENTORY SWAP routes the work to Mode C: the brief lists the component swaps per rule. STATUS FIX with css issues goes to Mode B (colour values only); STATUS jsx issues go to the Mode C brief. A screen is more than one page and one role: survey pages x roles x states first ([survey.md](references/survey.md)) and measure each reachable cell with `--inventory`.
+Any INVENTORY SWAP routes the work to Mode C: the brief lists the component swaps per rule. STATUS FIX with css issues goes to Mode B (colour values only); STATUS jsx issues go to the Mode C brief. STATUS checks any repeated short label or badge, whatever the words (structural detection); the English status word list is only a colour hint. A screen is more than one page and one role: survey pages x roles x states first ([survey.md](references/survey.md)) and measure each reachable cell with `--inventory`.
 
 The scan output is evidence, not a ruling. When the verdict surprises you (a tiny page scoring high, a messy one scoring low), say so and explain before acting.
 
