@@ -1,6 +1,6 @@
 {
   "name": "dashboardlify",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Measure, tighten, rework and build dashboards: spacing, radius, color, type, shadow and restrained motion.",
   "author": { "name": "ednaaaj" }
 }

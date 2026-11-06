@@ -164,6 +164,36 @@ Colour hints: a small English word list (on track, late, paid...) only suggests 
 
 Limits: detection is heuristic. The fit rules that look for a state column (`table-status-to-rows`, `long-list-no-filter`) and the date and person rules still use English word lists. Scan output is evidence, not a verdict; the run labels false positives. Table and list labels print empty in `--status` output when the heading sits outside the card.
 
+## Design checks, opt-in (v0.6.0)
+
+`scan.mjs <page> --design` adds seven general checks that spacing numbers cannot see (six feed one DESIGN verdict, the phone check has its own line). They work alone or together with `--status`, and without the flag the output is unchanged:
+
+- **Colour roles** (`accent-no-job`, `primary-button-styles`): one accent hue doing more than three jobs (button, link, active nav, chart, badge, border), or several different filled-button colours.
+- **Focal point** (`no-focal-point`): nothing clearly larger than body text, or several differently styled elements crowding the top size.
+- **Hue count** (`too-many-hues`): more than three hue families once status labels and chart series are set aside.
+- **Closeness** (`weak-grouping`): the gap between cards is not clearly bigger than the gap inside them.
+- **Phone size** (`phone-size`, its own `PHONE OK|FIX|SKIP` line, not part of the DESIGN verdict): measured at 390px wide only when the page's viewport meta says `width=device-width`; otherwise `PHONE SKIP`. Looks for sideways scroll, text under 12px, tap targets under 40px.
+- **Emphasis budget** (`contrast-overspent`): more than three filled buttons, solid badges or large bold coloured texts competing.
+- **Squint** (advisory, never changes the verdict): where the heaviest region of the first screen sits and whether it covers the largest text.
+
+Every finding is then decided as CHANGE, KEEP (with a reason) or ASK (a brand or intent decision) instead of being applied blindly. Rules, thresholds, the decision procedure and false-positive risks: `references/design-checks.md`. Real output from `examples/clean-dashboard.html` and `examples/northwind-team-designed.html` (`--design --no-palette --no-layout`):
+
+```
+DESIGN OK  (accent azure in 2 roles, 1 button fill, 1 hue, type 1.85x (2 styles near largest), neutral ~100%, grouping 4x, loud 1)
+advisory: squint: heaviest region of the first screen at x 70% y 0% (25% x 24%, 14% of the contrast weight) holds div.card; covers a largest-size text "8,742" (likely headline or KPI) (heuristic thumbnail pass, never changes the verdict)
+
+PHONE FIX  (0 texts under 12px, 8 targets under 40px, scrolls sideways)
+- phone-size: at 390px wide: page scrolls sideways (802px wide at 390px; widest: main.main to 802px, div.top to 770px, div to 770px; a table overflows); 8 tap targets under 40px (smallest a 36px, a 36px, a 36px) -> CSS fix (Mode B) (design-checks.md)
+
+DESIGN FIX  (accent orange in 1 role, 1 button fill, 4 hues, type 2.29x (1 style near largest), neutral ~99%, grouping 16x, loud 1)
+- too-many-hues: 4 hue families (max 3): orange 30-59deg 37%, green 120-149deg 33%, red 0-29deg 22%, azure 210-239deg 8% -> CSS fix (Mode B) (design-checks.md)
+advisory: squint: heaviest region of the first screen at x 0% y 32% (25% x 24%, 22% of the contrast weight) holds aside; does not cover any of the 4 largest-size texts on this screen (heuristic thumbnail pass, never changes the verdict)
+
+PHONE SKIP (page declares a desktop viewport or none)
+```
+
+`clean-dashboard.html` declares `width=device-width` but has no phone layout, so it is measured and fails honestly; `northwind-team-designed.html` declares no phone viewport, so the phone check is skipped. The second page's four hue families come from its progress bars and dots, which the scan cannot always tell from status colours. The checks are heuristics: the scan is evidence, not a verdict.
+
 ## Why did nothing change?
 
 Tighten is a values pass: sizes, colours, radii, spacing. If the real problems are layout (a tall top bar with a big logo, a banner taking a quarter of the first screen, six equal cards with the same icon tile, empty "--" widgets, truncated text, little data above the fold), snapping values to a scale will not move anything you can see.

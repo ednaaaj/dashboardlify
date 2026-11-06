@@ -60,7 +60,7 @@ const USAGE = `dashboardlify scan - quantify how sloppy a dashboard looks
 Usage:
   node scan.mjs <target...> [--json out.json] [--compare before.json] [--width 1440] [--dark] [--no-palette] [--combo calm|paper|brand]
                    [--height 900] [--no-layout] [--shot first.png] [--visible-change before.png]
-                   [--inventory] [--status] [--storage-state state.json] [--block <url-pattern>]
+                   [--inventory] [--status] [--design] [--storage-state state.json] [--block <url-pattern>]
   node scan.mjs --src <dir> [--json out.json]
 
   <target>   http(s) URL or local .html file (needs Chrome/Chromium; set CHROME_PATH to override)
@@ -83,6 +83,11 @@ Usage:
   --status      implies --inventory; also judge the status system (labels, pills, colours, contrast) and the content/domain rules
                 (STATUS OK|FIX|NONE; fit rules table-status-to-rows, flat-dates-to-groups, kpi-no-context, people-list-to-capacity,
                 long-list-no-filter; advisory: search-no-shortcut, no-page-summary). Label detection is structural (repeated short text or pill-styled text, any words); the English word list is only a colour hint; hits are evidence, confirm by hand.
+  --design      opt-in design checks, independent of --status. DESIGN OK|FIX|NONE from six rules: accent-no-job, primary-button-styles,
+                no-focal-point, too-many-hues, weak-grouping, contrast-overspent (plus an approximate neutral-colour share), and an
+                'advisory: squint' line (heaviest region of the first screen; never changes the verdict). A seventh rule, phone-size, gives a separate PHONE OK|FIX|SKIP line
+                that re-measures at 390px wide after everything else, only when the page's viewport meta has width=device-width;
+                it is not part of the DESIGN verdict. Heuristic, from computed styles: hits are evidence, confirm by hand.
   --storage-state <file>  log in without a form: Playwright-style {cookies, origins[].localStorage} or a bare cookie array
                 (values are sent to the browser only; the scan prints counts, never values)
   --block <pattern>  block matching requests (repeatable, '*' wildcard) so the page shows its error/empty state
@@ -1578,6 +1583,15 @@ async function scanPage(cdp, url, opts) {
   const r = await cdp.send('Runtime.evaluate', { expression: `({ raw: (${collect.toString()})(${!opts.noPalette}), layout: ${lay}, inventory: ${inv} })`, returnByValue: true, awaitPromise: true });
   if (r.exceptionDetails) throw new Error('collector failed: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text));
   const out = r.result.value;
+  if (opts.design) {
+    const run = async (fn, args) => {
+      const d = await cdp.send('Runtime.evaluate', { expression: `(${fn.toString()})(${args})`, returnByValue: true });
+      if (d.exceptionDetails) throw new Error('design probe failed: ' + (d.exceptionDetails.exception?.description || d.exceptionDetails.text));
+      return d.result.value;
+    };
+    out.design = await run(designProbe, `${DESIGN_SAT}, ${DESIGN_L_MIN}, ${DESIGN_L_MAX}`);
+    out.designPng = (await cdp.send('Page.captureScreenshot', { format: 'png' })).data;
+  }
   if (opts.shot || opts.visibleChange) {
     await cdp.send('Runtime.evaluate', { awaitPromise: true, expression: `(async () => {
       const st = document.createElement('style');
@@ -1589,6 +1603,23 @@ async function scanPage(cdp, url, opts) {
     await sleep(100);
   }
   if (opts.shot || opts.visibleChange) out.png = (await cdp.send('Page.captureScreenshot', { format: 'png' })).data;
+  if (opts.design) {
+    // Last on purpose: resizing the window can make the page's own scripts react (collapse a sidebar, load other markup),
+    // so nothing else is measured or captured after it. The page is not reloaded; the next target navigates fresh.
+    const run = async (expr) => {
+      const d = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true });
+      if (d.exceptionDetails) throw new Error('phone probe failed: ' + (d.exceptionDetails.exception?.description || d.exceptionDetails.text));
+      return d.result.value;
+    };
+    const meta = await run(`(document.querySelector('meta[name=viewport]') || {}).content || ''`);
+    if (!/width\s*=\s*device-width/i.test(meta)) out.phone = { skip: true };
+    else {
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: DESIGN_PHONE_W, height: DESIGN_PHONE_H, deviceScaleFactor: 1, mobile: false });
+      await sleep(300);
+      out.phone = await run(`(${phoneProbe.toString()})(${DESIGN_MIN_TEXT_PX}, ${DESIGN_MIN_TARGET_PX})`);
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: opts.width, height: opts.height, deviceScaleFactor: 1, mobile: false });
+    }
+  }
   return out;
 }
 
@@ -1649,9 +1680,15 @@ async function runBrowser(targets, opts) {
     for (const [idx, t] of targets.entries()) {
       try {
         if (!/^https?:\/\//i.test(t) && !existsSync(t)) throw new Error(`no such file: ${t}`);
-        const { raw, layout, inventory, png } = await withTimeout(scanPage(cdp, toUrl(t), opts), TARGET_TIMEOUT_MS, t);
+        const { raw, layout, inventory, png, design, phone, designPng } = await withTimeout(scanPage(cdp, toUrl(t), opts), TARGET_TIMEOUT_MS, t);
         const res = { target: t, ...analyze(raw), layout: layout ? analyzeLayout(layout, opts.width) : null };
         if (inventory) res.inventory = analyzeInventory(inventory, opts.status);
+        if (design) {
+          let sq;
+          try { sq = analyzeSquint(await squintShot(port, designPng), design.bigs, design.holders); } catch (e) { sq = { error: e.message }; }
+          res.design = analyzeDesign(design, sq);
+          res.phone = analyzePhone(phone);
+        }
         if (opts.shot) {
           res.shot = targets.length > 1 ? opts.shot.replace(/(\.png)?$/i, `-${idx + 1}$1`) : opts.shot;
           writeFileSync(res.shot, Buffer.from(png, 'base64'));
@@ -1714,6 +1751,8 @@ function printTarget(r) {
   }
   if (r.layout) printLayout(r.layout, r.verdict);
   if (r.inventory) printInventory(r.inventory);
+  if (r.design) printDesign(r.design);
+  if (r.phone) printPhone(r.phone);
   if (r.palette) printPalette(r.palette);
 }
 
@@ -1787,6 +1826,357 @@ function printPalette(p) {
   s.why.forEach((w) => console.log(`  why: ${w}`));
 }
 
+// ---- Design checks (--design): accent roles, focal point, hue count ----------
+// Thresholds: heuristic, tune against examples/*.html. Docs: references/design-checks.md
+const DESIGN_SAT = 0.25; // HSL saturation at/above which a colour counts as chromatic
+const DESIGN_L_MIN = 0.1; // ... and lightness inside this band (near-black and pastel tints are neutral)
+const DESIGN_L_MAX = 0.92;
+const DESIGN_MAX_ROLES = 3; // accent-no-job: the accent may do at most this many different jobs
+const DESIGN_MAX_BUTTON_STYLES = 1; // primary-button-styles: filled non-destructive button fills
+const DESIGN_MIN_RATIO = 1.5; // no-focal-point: largest text size / median text size under this = nothing dominates
+const DESIGN_MAX_NEAR = 5; // no-focal-point: this many text elements within 10% of the largest size = a crowd
+const DESIGN_MAX_HUES = 3; // too-many-hues: non-status hue families (30-degree buckets) above this
+const DESIGN_HUE_SHARE = 0.04; // ... each must carry at least this share of the chromatic weight
+const DESIGN_MIN_TEXT = 5; // fewer text elements than this: verdict NONE
+const DESIGN_MIN_GROUP_RATIO = 1.5; // weak-grouping: median gap between cards / median gap between items inside a card, under this = not grouped
+const DESIGN_PHONE_W = 390; // phone-size: re-measure at this width (viewport is restored afterwards)
+const DESIGN_PHONE_H = 844;
+const DESIGN_MIN_TEXT_PX = 12; // phone-size: smaller text counts as tiny
+const DESIGN_MIN_TARGET_PX = 40; // phone-size: buttons, inputs and standalone links smaller than this (either side) are hard to tap
+const DESIGN_PHONE_MAX = 3; // phone-size: this many tiny texts or small targets (or any page-level sideways scroll) is a finding
+const DESIGN_MAX_LOUD = 3; // contrast-overspent: more than this many top-emphasis elements compete
+const DESIGN_SQUINT_W = 160; // squint (advisory): thumbnail width in px
+const DESIGN_SQUINT_CELL = 8; // ... grid cell in thumbnail px
+const DESIGN_HUE_NAMES = ['red', 'orange', 'yellow', 'lime', 'green', 'spring green', 'cyan', 'azure', 'blue', 'violet', 'magenta', 'rose'];
+
+
+// Runs inside the page; must stay self-contained.
+function designProbe(SAT, LMIN, LMAX) {
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'OPTION', 'HEAD', 'META', 'LINK', 'TITLE', 'BR', 'DEFS', 'PATH_']);
+  const STATUS_CLS = /(^|[\s_-])(danger|success|warning|error|positive|negative|critical|alert|status|destructive|delta|trend)([\s_-]|$)/i;
+  const STATUS_TXT = /^(open|closed|pending|active|inactive|paid|unpaid|failed|success|error|done|in progress|shipped|delivered|cancell?ed|refunded|resolved|overdue|late|approved|rejected|blocked|processing|completed|queued|running|stopped|warning|ok|healthy|on hold|on track|at risk|behind|ahead|delayed|complete|incomplete|scheduled|due today|due soon|delete|remove|discard)$/i;
+  const DELTA = /^[+\-−▲▼↑↓]?\s*[$€£]?\d[\d.,]*\s*(%|pts?|pp)?(\s|$)/;
+  const DESTR = /delete|remove|discard|danger|destructive/i;
+  const PILL = /(^|[\s_-])(badge|chip|pill|tag|label)([\s_-]|$)/i;
+  const BTN = /(^|[\s_-])(btn|button)([\s_-]|$)/i;
+  const SERIES = /(^|[\s_-])(bar|series|segment|slice|legend|swatch|dot|spark\w*)([\s_-]|$)/i;
+  const parse = (s) => {
+    const m = s && s.match(/rgba?\(([^)]+)\)/);
+    if (!m) return null;
+    const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat);
+    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+  };
+  const hsl = ({ r, g, b }) => {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (!d) return { h: 0, s: 0, l };
+    const s = d / (1 - Math.abs(2 * l - 1));
+    let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: (h * 60 + 360) % 360, s, l };
+  };
+  const hex = ({ r, g, b }) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const chromaOf = (c) => {
+    if (!c || c.a < 0.5) return null;
+    const o = hsl(c);
+    return o.s >= SAT && o.l >= LMIN && o.l <= LMAX ? { hue: o.h, hex: hex(c), l: o.l } : null;
+  };
+  const gradStops = (bi) => (/gradient\(/.test(bi || '') ? (bi.match(/rgba?\([^)]+\)/g) || []).map(parse).filter(Boolean) : []);
+  const uses = []; // {role, hue, hex, w, status}
+  const texts = []; // {fs, len}
+  let neutralArea = 0, chromArea = 0;
+  const btnFills = new Map(); // hex -> count, non-destructive filled buttons
+  const loud = []; // top-tier emphasis: filled buttons, solid badges, bold large coloured text
+  const add = (role, c, w, status) => { if (c && w > 0) uses.push({ role, hue: c.hue, hex: c.hex, w, status }); };
+  const opaque = (e) => { const q = getComputedStyle(e); const b = parse(q.backgroundColor); return (b && b.a >= 0.5) || gradStops(q.backgroundImage).length > 0; };
+  const seen = (e) => { const q = e.getBoundingClientRect(); return q.width > 1 && q.height > 1 && getComputedStyle(e).display !== 'none'; };
+  const coverMemo = new Map();
+  // area covered by the nearest opaque boxes below an element: subtracted so a card on a page is not counted twice
+  const covered = (e) => {
+    if (coverMemo.has(e)) return coverMemo.get(e);
+    let a = 0;
+    for (const c of e.children) { if (c.closest('svg') || !seen(c)) continue; if (opaque(c)) { const q = c.getBoundingClientRect(); a += q.width * q.height; } else a += covered(c); }
+    coverMemo.set(e, a);
+    return a;
+  };
+  const all = document.body ? [document.body, ...document.body.querySelectorAll('*')] : [];
+  for (const el of all) {
+    if (SKIP.has(el.tagName.toUpperCase())) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) continue;
+    const area = r.width * r.height;
+    const cls = typeof el.className === 'string' ? el.className : (el.getAttribute('class') || '');
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ');
+    const full = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    const inSvg = !!el.closest('svg') || el.tagName.toLowerCase() === 'canvas';
+    const tag = el.tagName.toLowerCase();
+    const isBtn = tag === 'button' || el.getAttribute('role') === 'button' || (tag === 'input' && /^(button|submit)$/.test(el.type)) || (tag === 'a' && BTN.test(cls));
+    const small = r.height <= 36 && full.length > 0 && full.length <= 24;
+    const status = STATUS_CLS.test(cls) || (small && (STATUS_TXT.test(full) || DELTA.test(full))) || (own && DELTA.test(own) && own.length <= 12)
+      || (!!el.parentElement && STATUS_CLS.test(typeof el.parentElement.className === 'string' ? el.parentElement.className : '') && small);
+    const destructive = DESTR.test(cls) || DESTR.test(full.slice(0, 20));
+    const isNav = !!el.closest('nav,aside,[role=navigation],[class*=sidebar],[class*=nav]');
+    const active = el.getAttribute('aria-current') || el.getAttribute('aria-selected') === 'true' || /(^|[\s_-])(active|current|selected)([\s_-]|$)/i.test(cls);
+    // text colour
+    if (own) {
+      const tc = parse(cs.color), ch = chromaOf(tc), fs = parseFloat(cs.fontSize);
+      const tw = Math.min(area, own.length * fs * fs * 0.55);
+      texts.push({ fs, len: own.length, sig: tag + '.' + cls, x: r.left, y: r.top, w: r.width, h: r.height, t: own.slice(0, 24) });
+      if (ch && !status && !isBtn && fs >= 20 && /[\p{L}\p{N}]/u.test(own) && parseInt(cs.fontWeight, 10) >= 600) loud.push({ kind: 'bold coloured text', text: own.slice(0, 24) });
+      if (ch) {
+        chromArea += tw;
+        add(isBtn ? 'button' : isNav && active ? 'nav active' : tag === 'a' || el.closest('a') ? 'link text' : 'text', ch, tw, status || destructive);
+      } else if (tc && tc.a >= 0.5) neutralArea += tw;
+    }
+    // fills
+    const bc = parse(cs.backgroundColor);
+    const stops = gradStops(cs.backgroundImage);
+    const fill = chromaOf(bc) || (stops.length ? chromaOf(stops[0]) : null);
+    if (inSvg) {
+      for (const prop of ['fill', 'stroke']) {
+        const c = parse(cs[prop]), ch = chromaOf(c);
+        if (ch) add('chart series', ch, prop === 'fill' ? area : Math.max(1, parseFloat(cs.strokeWidth) || 1) * (r.width + r.height), status);
+      }
+    } else if (bc && bc.a >= 0.5) {
+      const own2 = Math.max(0, area - covered(el));
+      if (chromaOf(bc)) chromArea += own2; else neutralArea += own2;
+    } else if (stops.length) {
+      chromArea += Math.max(0, area - covered(el));
+    }
+    if (!inSvg && fill) {
+      let role = null;
+      if (isBtn) role = 'button';
+      else if (isNav && active) role = 'nav active';
+      else if (PILL.test(cls) || (small && cs.borderRadius && parseFloat(cs.borderRadius) >= r.height / 2 - 1 && area < 6000)) role = 'badge';
+      else if (SERIES.test(cls) && area < 40000) role = 'chart series';
+      add(role || 'surface', fill, area, status || (role !== 'button' && destructive));
+      if (!status && !destructive && (role === 'button' || (role === 'badge' && fill.l <= 0.65))) loud.push({ kind: role === 'button' ? 'filled button' : 'solid badge', text: full.slice(0, 24) });
+      if (isBtn && !status && !destructive) { const q = [1, 3, 5].map((k) => Math.min(255, Math.round(parseInt(fill.hex.slice(k, k + 2), 16) / 16) * 16)); btnFills.set(hex({ r: q[0], g: q[1], b: q[2] }), (btnFills.get(hex({ r: q[0], g: q[1], b: q[2] })) || 0) + 1); }
+    }
+    // extra gradient stops: weight for the hue count only
+    if (!inSvg && stops.length > 1) for (const s of stops.slice(1)) add('gradient', chromaOf(s), area / stops.length, status);
+    // borders / rings
+    if (!inSvg) {
+      const bw = [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth].map(parseFloat);
+      const bcs = [cs.borderTopColor, cs.borderRightColor, cs.borderBottomColor, cs.borderLeftColor];
+      bw.forEach((w, i) => { const ch = w > 0 ? chromaOf(parse(bcs[i])) : null; if (ch) add('border', ch, w * (i % 2 ? r.height : r.width), status); });
+      const ow = parseFloat(cs.outlineWidth), och = cs.outlineStyle !== 'none' && ow > 0 ? chromaOf(parse(cs.outlineColor)) : null;
+      if (och) add('border', och, ow * (r.width + r.height), status);
+    }
+  }
+  // closeness: gaps between sibling cards vs gaps between stacked items inside a card
+  const NOT_CARD = new Set(['TD', 'TH', 'TR', 'TABLE', 'THEAD', 'TBODY', 'INPUT', 'BUTTON', 'SELECT', 'TEXTAREA', 'A', 'SPAN', 'LABEL', 'SVG', 'TEXT', 'BODY', 'HTML']);
+  const vis = (e) => { const q = e.getBoundingClientRect(); return q.width > 1 && q.height > 1 && getComputedStyle(e).display !== 'none'; };
+  const cardSet = new Set();
+  for (const el of all) {
+    if (NOT_CARD.has(el.tagName.toUpperCase()) || !el.parentElement) continue;
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (r.width < 100 || r.height < 50 || r.width > 0.8 * innerWidth || cs.display === 'inline' || !(el.textContent || '').trim()) continue;
+    const bc = parse(cs.backgroundColor), pb = parse(getComputedStyle(el.parentElement).backgroundColor);
+    const edge = [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth].some((w) => parseFloat(w) > 0) || cs.boxShadow !== 'none';
+    const diff = bc && bc.a >= 0.5 && (!pb || pb.a < 0.5 || Math.abs(bc.r - pb.r) + Math.abs(bc.g - pb.g) + Math.abs(bc.b - pb.b) > 6);
+    if (edge || diff) cardSet.add(el);
+  }
+  const outer = [], inner = [];
+  const kids = (e) => [...e.children].filter(vis);
+  for (const el of cardSet) {
+    const sibs = kids(el.parentElement).filter((k) => cardSet.has(k));
+    if (sibs[0] === el) {
+      for (let i = 1; i < sibs.length; i++) {
+        const a = sibs[i - 1].getBoundingClientRect(), b = sibs[i].getBoundingClientRect();
+        const yo = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top), xo = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const g = yo > 0.5 * Math.min(a.height, b.height) ? b.left - a.right : xo > 0.5 * Math.min(a.width, b.width) ? b.top - a.bottom : -1;
+        if (g >= 0 && g <= 200) outer.push(Math.round(g));
+      }
+    }
+    let k = kids(el);
+    for (let d = 0; d < 3 && k.length === 1; d++) k = kids(k[0]);
+    for (let i = 1; i < Math.min(k.length, 7); i++) {
+      const a = k[i - 1].getBoundingClientRect(), b = k[i].getBoundingClientRect();
+      if (b.top >= a.bottom - 1) inner.push(Math.max(0, Math.round(b.top - a.bottom)));
+    }
+  }
+  const maxFs = texts.reduce((m, t) => Math.max(m, t.fs), 0);
+  const bigs = texts.filter((t) => t.fs >= 0.9 * maxFs).slice(0, 40).map((t) => ({ x: Math.round(t.x), y: Math.round(t.y), w: Math.round(t.w), h: Math.round(t.h), t: t.t }));
+  texts.forEach((t) => { delete t.x; delete t.y; delete t.w; delete t.h; delete t.t; });
+  // what could be in a heavy region of the first screen: boxes with text or an opaque fill that are not page-sized wrappers
+  const holders = [];
+  for (const el of all) {
+    if (holders.length >= 400) break;
+    const q = el.getBoundingClientRect();
+    if (q.top >= innerHeight || q.width < 4 || q.height < 4 || q.width * q.height > 0.6 * innerWidth * innerHeight || !seen(el)) continue;
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ');
+    if (!own && !opaque(el)) continue;
+    holders.push({ x: Math.round(q.left), y: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height), n: el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/)[0] : ''), t: own.slice(0, 24) });
+  }
+  return { uses, texts, neutralArea, chromArea, btnFills: [...btnFills.entries()], loud, bigs, holders, outer, inner, view: { w: innerWidth, h: innerHeight } };
+}
+
+// Runs inside the page after the viewport is narrowed to a phone; must stay self-contained.
+function phoneProbe(minText, minTarget) {
+  const vw = innerWidth, tiny = [], small = [], over = [];
+  const clipped = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') return true; } return false; };
+  const nm = (e) => e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/)[0] : '');
+  for (const e of document.body ? document.body.querySelectorAll('*') : []) {
+    if (/^(SCRIPT|STYLE|OPTION|BR)$/.test(e.tagName.toUpperCase())) continue;
+    const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+    if (r.width < 2 || r.height < 2 || cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const own = [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+    if (own && parseFloat(cs.fontSize) < minText) tiny.push({ el: nm(e), px: parseFloat(cs.fontSize) });
+    const tag = e.tagName.toLowerCase();
+    const hit = tag === 'button' || tag === 'select' || tag === 'textarea' || (tag === 'input' && e.type !== 'hidden') || e.getAttribute('role') === 'button' || (tag === 'a' && e.hasAttribute('href'));
+    if (hit && !(tag === 'a' && cs.display === 'inline') && Math.min(r.width, r.height) < minTarget) small.push({ el: nm(e), px: Math.round(Math.min(r.width, r.height)) });
+    if (r.right > vw + 1 && !clipped(e)) over.push({ el: nm(e), right: Math.round(r.right), table: tag === 'table' });
+  }
+  const sw = document.documentElement.scrollWidth;
+  const worst = (a, k, dir) => a.slice().sort((x, y) => dir * (x[k] - y[k])).slice(0, 3);
+  return { vw, scrollW: sw, tiny: tiny.length, tinyWorst: worst(tiny, 'px', 1), small: small.length, smallWorst: worst(small, 'px', 1), overWorst: sw > vw + 1 ? worst(over, 'right', -1) : [], overTable: sw > vw + 1 && over.some((o) => o.table) };
+}
+
+// Runs inside a blank tab: the first-screen PNG is shrunk to a thumbnail; each grid cell scores how far its pixels sit from the page's commonest luminance.
+async function squintProbe(url, tw, cell) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('cannot decode PNG')); i.src = url; });
+  const th = Math.max(1, Math.round((img.height * tw) / img.width));
+  const c = document.createElement('canvas'); c.width = tw; c.height = th;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(img, 0, 0, tw, th);
+  const d = x.getImageData(0, 0, tw, th).data, lum = new Float32Array(tw * th), hist = new Array(32).fill(0);
+  for (let i = 0; i < tw * th; i++) { const l = 0.2126 * d[4 * i] + 0.7152 * d[4 * i + 1] + 0.0722 * d[4 * i + 2]; lum[i] = l; hist[l >> 3]++; }
+  const base = (hist.indexOf(Math.max(...hist)) + 0.5) * 8;
+  const cols = Math.ceil(tw / cell), rows = Math.ceil(th / cell), cells = new Array(cols * rows).fill(0);
+  for (let i = 0; i < tw * th; i++) cells[Math.floor(i / tw / cell) * cols + Math.floor(((i % tw) / cell))] += Math.abs(lum[i] - base) / 255;
+  return { cols, rows, cells, tw, th, W: img.width, H: img.height };
+}
+
+async function squintShot(port, b64) {
+  const tab = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
+  let cdp;
+  try {
+    cdp = await connectCdp(tab.webSocketDebuggerUrl);
+    const r = await cdp.send('Runtime.evaluate', { expression: `(${squintProbe.toString()})(${JSON.stringify('data:image/png;base64,' + b64)}, ${DESIGN_SQUINT_W}, ${DESIGN_SQUINT_CELL})`, returnByValue: true, awaitPromise: true });
+    if (r.exceptionDetails) throw new Error('squint failed: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text));
+    return r.result.value;
+  } finally {
+    try { cdp?.close(); } catch {}
+    try { await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`); } catch {}
+  }
+}
+
+// Advisory only: the heaviest 5x3-cell window, and whether it covers the largest text. Never changes the verdict.
+function analyzeSquint(q, bigs, holders) {
+  const WC = 5, WR = 3;
+  let best = null, total = q.cells.reduce((a, v) => a + v, 0);
+  for (let r = 0; r + WR <= Math.max(q.rows, WR); r++) for (let c = 0; c + WC <= Math.max(q.cols, WC); c++) {
+    let sum = 0;
+    for (let y = r; y < Math.min(r + WR, q.rows); y++) for (let x = c; x < Math.min(c + WC, q.cols); x++) sum += q.cells[y * q.cols + x];
+    if (!best || sum > best.sum) best = { r, c, sum };
+  }
+  if (!best || !total) return { note: 'flat first screen, nothing stands out' };
+  const k = q.W / q.tw, rect = { x: best.c * DESIGN_SQUINT_CELL * k, y: best.r * DESIGN_SQUINT_CELL * k, w: WC * DESIGN_SQUINT_CELL * k, h: WR * DESIGN_SQUINT_CELL * k };
+  const pct = (v, of) => Math.round((100 * v) / of);
+  const inter = (b) => Math.max(0, Math.min(b.x + b.w, rect.x + rect.w) - Math.max(b.x, rect.x)) * Math.max(0, Math.min(b.y + b.h, rect.y + rect.h) - Math.max(b.y, rect.y));
+  const onScreen = (bigs || []).filter((b) => b.y < q.H);
+  const hit = onScreen.find((b) => inter(b) > 0);
+  const holder = (holders || []).map((h) => ({ h, a: inter(h) })).filter((x) => x.a > 0).sort((a, b) => b.a - a.a)[0];
+  return {
+    x: pct(rect.x, q.W), y: pct(rect.y, q.H), w: pct(rect.w, q.W), h: pct(rect.h, q.H), share: pct(best.sum, total),
+    largestTexts: (bigs || []).length, largestOnScreen: onScreen.length, coversLargestText: onScreen.length ? !!hit : null, covers: hit ? hit.t : null,
+    holds: holder ? `${holder.h.n}${holder.h.t ? ` "${holder.h.t}"` : ''}` : null,
+  };
+}
+
+const DESIGN_ROLES = [['button', 'button'], ['link text', 'link text'], ['nav active', 'active nav'], ['chart series', 'chart series'], ['badge', 'badge/pill bg'], ['border', 'border/ring']];
+const DESIGN_FIX = { css: 'CSS fix (Mode B)', jsx: 'markup fix (Mode C brief)' };
+
+function analyzeDesign(raw, squint) {
+  const bucket = (h) => Math.floor(h / 30) % 12;
+  const label = (b) => `${DESIGN_HUE_NAMES[b]} ${b * 30}-${b * 30 + 29}deg`;
+  const issues = [];
+  const add = (rule, detail, fix) => issues.push({ rule, detail, fix, ref: 'design-checks.md' });
+  const live = raw.uses.filter((u) => !u.status);
+  const roleNames = DESIGN_ROLES.map(([r]) => r);
+
+  // 1. accent roles: the most-used hue among the role-bearing uses, and how many different jobs it does
+  const byRole = new Map();
+  live.filter((u) => roleNames.includes(u.role)).forEach((u) => byRole.set(bucket(u.hue), (byRole.get(bucket(u.hue)) || 0) + u.w));
+  const top = [...byRole.entries()].sort((a, b) => b[1] - a[1])[0];
+  const accent = top ? top[0] : null;
+  const roles = accent === null ? [] : DESIGN_ROLES.filter(([r]) => live.some((u) => u.role === r && bucket(u.hue) === accent)).map(([, n]) => n);
+  const buttonStyles = raw.btnFills.length;
+  const total = raw.neutralArea + raw.chromArea;
+  const neutralShare = total ? Math.round((100 * raw.neutralArea) / total) : null;
+  const enough = raw.texts.length >= DESIGN_MIN_TEXT;
+  if (enough && roles.length > DESIGN_MAX_ROLES) add('accent-no-job', `accent ${label(accent)} used in ${roles.length} roles: ${roles.join(', ')} (max ${DESIGN_MAX_ROLES})`, 'css');
+  if (enough && buttonStyles > DESIGN_MAX_BUTTON_STYLES) add('primary-button-styles', `${buttonStyles} filled button fills outside destructive/status: ${raw.btnFills.map(([h, n]) => `${h} x${n}`).join(', ')}`, 'css');
+
+  // 2. focal point: text sizes, character-weighted median so body copy sets the baseline
+  const sizes = raw.texts.map((t) => t.fs).filter((v) => v > 0);
+  const maxFs = sizes.length ? Math.max(...sizes) : 0;
+  const sorted = raw.texts.filter((t) => t.fs > 0).sort((a, b) => a.fs - b.fs);
+  const half = sorted.reduce((a, t) => a + t.len, 0) / 2;
+  let acc = 0, median = 0;
+  for (const t of sorted) { acc += t.len; if (acc >= half) { median = t.fs; break; } }
+  const ratio = median ? Math.round((100 * maxFs) / median) / 100 : 0;
+  const nearAll = raw.texts.filter((t) => t.fs >= 0.9 * maxFs);
+  const near = new Set(nearAll.map((t) => t.sig)).size; // a row of identical cards is one tier, not five rivals
+  if (enough && median && ratio < DESIGN_MIN_RATIO) add('no-focal-point', `largest text ${maxFs}px is ${ratio}x the median ${median}px (needs ${DESIGN_MIN_RATIO}x): nothing dominates`, 'jsx');
+  else if (enough && near >= DESIGN_MAX_NEAR) add('no-focal-point', `${near} differently styled text elements (${nearAll.length} in all) within 10% of the largest size ${maxFs}px (median ${median}px, ${ratio}x): many compete for first look`, 'jsx');
+
+  // 3. hue families outside status labels and chart series
+  const hw = new Map();
+  live.filter((u) => u.role !== 'chart series').forEach((u) => hw.set(bucket(u.hue), (hw.get(bucket(u.hue)) || 0) + u.w));
+  const hwTotal = [...hw.values()].reduce((a, v) => a + v, 0);
+  const hues = [...hw.entries()].map(([b, w]) => ({ bucket: b, name: label(b), share: hwTotal ? w / hwTotal : 0 })).filter((h) => h.share >= DESIGN_HUE_SHARE).sort((a, b) => b.share - a.share);
+  if (enough && hues.length > DESIGN_MAX_HUES) add('too-many-hues', `${hues.length} hue families (max ${DESIGN_MAX_HUES}): ${hues.map((h) => `${h.name} ${Math.round(h.share * 100)}%`).join(', ')}`, 'css');
+
+  // 4. closeness: outer (card to card) vs inner (item to item inside a card)
+  const med = (a) => { const v = a.slice().sort((x, y) => x - y); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : 0; };
+  const outerMed = med(raw.outer), innerMed = med(raw.inner);
+  const groupRatio = raw.outer.length >= 1 && raw.inner.length >= 3 ? Math.round((100 * outerMed) / Math.max(innerMed, 1)) / 100 : null;
+  if (enough && groupRatio !== null && groupRatio < DESIGN_MIN_GROUP_RATIO) add('weak-grouping', `gap between cards ${outerMed}px (median of ${raw.outer.length}) vs gap inside cards ${innerMed}px (median of ${raw.inner.length}): ${groupRatio}x (needs ${DESIGN_MIN_GROUP_RATIO}x), related things are not closer than unrelated ones`, 'css');
+
+  // 6. top-tier emphasis competing for first look
+  const loud = raw.loud || [];
+  if (enough && loud.length > DESIGN_MAX_LOUD) add('contrast-overspent', `${loud.length} top-emphasis elements compete (max ${DESIGN_MAX_LOUD}): ${loud.slice(0, 4).map((l) => `${l.kind} "${l.text}"`).join(', ')}${loud.length > 4 ? ', ...' : ''}`, 'css');
+
+  const verdict = issues.length ? 'FIX' : enough ? 'OK' : 'NONE';
+  const summary = `${accent === null ? 'no accent' : `accent ${DESIGN_HUE_NAMES[accent]} in ${roles.length} role${roles.length === 1 ? '' : 's'}`}, ${buttonStyles} button fill${buttonStyles === 1 ? '' : 's'}, ${hues.length} hue${hues.length === 1 ? '' : 's'}, type ${ratio}x (${near} style${near === 1 ? '' : 's'} near largest), neutral ~${neutralShare ?? '-'}%, grouping ${groupRatio === null ? '-' : groupRatio + 'x'}, loud ${loud.length}`;
+  return {
+    verdict, summary, issues,
+    accent: accent === null ? null : { hue: label(accent), roles },
+    squint: squint || null, groupGaps: { outer: outerMed, inner: innerMed, ratio: groupRatio }, loud: loud.length,
+    buttonStyles, neutralShare, type: { largest: maxFs, median, ratio, nearLargest: near, nearLargestElements: nearAll.length }, hues: hues.map((h) => ({ hue: h.name, share: Math.round(h.share * 100) / 100 })),
+  };
+}
+
+function analyzePhone(phone) {
+  if (!phone) return null;
+  if (phone.skip) return { verdict: 'SKIP', detail: 'page declares a desktop viewport or none' };
+  const why = [];
+  if (phone.scrollW > phone.vw + 1) why.push(`page scrolls sideways (${phone.scrollW}px wide at ${phone.vw}px${phone.overWorst.length ? `; widest: ${phone.overWorst.map((o) => `${o.el} to ${o.right}px`).join(', ')}` : ''}${phone.overTable ? '; a table overflows' : ''})`);
+  if (phone.tiny >= DESIGN_PHONE_MAX) why.push(`${phone.tiny} texts under ${DESIGN_MIN_TEXT_PX}px (smallest ${phone.tinyWorst.map((t) => `${t.el} ${t.px}px`).join(', ')})`);
+  if (phone.small >= DESIGN_PHONE_MAX) why.push(`${phone.small} tap targets under ${DESIGN_MIN_TARGET_PX}px (smallest ${phone.smallWorst.map((t) => `${t.el} ${t.px}px`).join(', ')})`);
+  return { verdict: why.length ? 'FIX' : 'OK', detail: why.length ? `at ${phone.vw}px wide: ${why.join('; ')}` : `at ${phone.vw}px wide`, counts: { tinyTexts: phone.tiny, smallTargets: phone.small, scrollWidth: phone.scrollW } };
+}
+
+function printPhone(p) {
+  if (p.verdict === 'SKIP') return console.log(`\nPHONE SKIP (${p.detail})`);
+  console.log(`\nPHONE ${p.verdict}  (${p.counts.tinyTexts} texts under ${DESIGN_MIN_TEXT_PX}px, ${p.counts.smallTargets} targets under ${DESIGN_MIN_TARGET_PX}px, ${p.counts.scrollWidth > DESIGN_PHONE_W + 1 ? 'scrolls sideways' : 'no sideways scroll'})`);
+  if (p.verdict === 'FIX') console.log(`- phone-size: ${p.detail} -> ${DESIGN_FIX.css} (design-checks.md)`);
+}
+
+function printDesign(d) {
+  console.log(`\nDESIGN ${d.verdict}  (${d.summary})`);
+  d.issues.forEach((i) => console.log(`- ${i.rule}: ${i.detail} -> ${DESIGN_FIX[i.fix]} (${i.ref})`));
+  const q = d.squint;
+  if (!q) return;
+  if (q.error) return console.log(`advisory: squint: not run (${q.error})`);
+  if (q.note) return console.log(`advisory: squint: ${q.note}`);
+  const cov = q.coversLargestText === null ? `none of the ${q.largestTexts} largest-size texts is on the first screen` : q.coversLargestText ? `covers a largest-size text "${q.covers}" (likely headline or KPI)` : `does not cover any of the ${q.largestOnScreen} largest-size texts on this screen`;
+  console.log(`advisory: squint: heaviest region of the first screen at x ${q.x}% y ${q.y}% (${q.w}% x ${q.h}%, ${q.share}% of the contrast weight)${q.holds ? ` holds ${q.holds}` : ''}; ${cov} (heuristic thumbnail pass, never changes the verdict)`);
+}
+
 function aggregate(results) {
   const ok = results.filter((r) => !r.error);
   const headline = {};
@@ -1811,10 +2201,21 @@ function aggregate(results) {
     perTarget: invs.map((r) => ({ target: r.target, verdict: r.inventory.verdict })),
     ...(invs.some((r) => r.inventory.status) ? { status: invs.filter((r) => r.inventory.status).reduce((w, r) => (STATUS_RANK[r.inventory.status.verdict] > STATUS_RANK[w] ? r.inventory.status.verdict : w), 'NONE') } : {}),
   } : null;
-  return { targets: ok.length, violations: V, score: headline.score, verdict, headline, palette, layout, ...(inventory ? { inventory } : {}) };
+  const dsg = ok.filter((r) => r.design);
+  const design = dsg.length ? {
+    verdict: dsg.reduce((w, r) => (STATUS_RANK[r.design.verdict] > STATUS_RANK[w] ? r.design.verdict : w), 'NONE'),
+    perTarget: dsg.map((r) => ({ target: r.target, verdict: r.design.verdict })),
+  } : null;
+  const PH = { SKIP: 0, OK: 1, FIX: 2 };
+  const phs = ok.filter((r) => r.phone);
+  const phone = phs.length ? {
+    verdict: phs.reduce((w, r) => (PH[r.phone.verdict] > PH[w] ? r.phone.verdict : w), 'SKIP'),
+    perTarget: phs.map((r) => ({ target: r.target, verdict: r.phone.verdict })),
+  } : null;
+  return { targets: ok.length, violations: V, score: headline.score, verdict, headline, palette, layout, ...(inventory ? { inventory } : {}), ...(design ? { design } : {}), ...(phone ? { phone } : {}) };
 }
 
-function printCompare(before, after, targets, palAfter, layAfter, invAfter) {
+function printCompare(before, after, targets, palAfter, layAfter, invAfter, desAfter, phAfter) {
   const b = before.aggregate?.headline || before.headline || {};
   const prev = (before.targets || []).filter((t) => !t.error).map((t) => t.target).sort().join('\n');
   if (prev !== [...targets].sort().join('\n')) console.log('\nWARNING: before and after cover different page sets; counts are summed over different pages.');
@@ -1834,6 +2235,8 @@ function printCompare(before, after, targets, palAfter, layAfter, invAfter) {
     console.log(`Inventory: ${swaps(ib)}/${ib.perTarget.length} SWAP (${ib.verdict}) -> ${swaps(invAfter)}/${n} SWAP (${invAfter.verdict})`);
     if (ib.status && invAfter.status) console.log(`Status: ${ib.status} -> ${invAfter.status}`);
   }
+  if (desAfter && before.aggregate?.design) console.log(`Design: ${before.aggregate.design.verdict} -> ${desAfter.verdict}`);
+  if (phAfter && before.aggregate?.phone) console.log(`Phone: ${before.aggregate.phone.verdict} -> ${phAfter.verdict}`);
   console.log(`\nOverall: ${d < 0 ? 'IMPROVED' : d > 0 ? 'WORSE' : 'UNCHANGED'} (violations ${b.violations ?? '-'} -> ${after.violations}, score ${b.score ?? '-'} -> ${after.score})`);
 }
 
@@ -2030,7 +2433,7 @@ function printSource(r) {
 
 // ---- CLI --------------------------------------------------------------------
 function parseArgs(argv) {
-  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, height: 900, noLayout: false, shot: null, visibleChange: null, json: null, compare: null, src: null, help: false, inventory: false, status: false, storageState: null, block: [], auth: null };
+  const o = { targets: [], width: 1440, dark: false, noPalette: false, combo: null, height: 900, noLayout: false, shot: null, visibleChange: null, json: null, compare: null, src: null, help: false, inventory: false, status: false, design: false, storageState: null, block: [], auth: null };
   const val = (i, flag) => {
     if (i + 1 >= argv.length) throw new Error(`${flag} needs a value`);
     return argv[i + 1];
@@ -2049,6 +2452,7 @@ function parseArgs(argv) {
     else if (a === '--no-layout') o.noLayout = true;
     else if (a === '--inventory') o.inventory = true;
     else if (a === '--status') o.status = o.inventory = true;
+    else if (a === '--design') o.design = true;
     else if (a === '--storage-state') o.storageState = val(i++, a);
     else if (a === '--block') o.block.push(val(i++, a));
     else if (a === '--shot') o.shot = val(i++, a);
@@ -2099,11 +2503,13 @@ async function main() {
   const agg = aggregate(results);
   if (oks.length > 1) console.log(`\n== Aggregate (${agg.targets} targets) ==\nSCORE ${agg.score}  VERDICT ${agg.verdict}  (worst verdict; counts summed)`);
   if (oks.length > 1 && agg.layout) console.log(`LAYOUT ${agg.layout.verdict}  (worst; score summed ${agg.layout.score}; ${agg.layout.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
+  if (oks.length > 1 && agg.design) console.log(`DESIGN ${agg.design.verdict}  (worst; ${agg.design.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
+  if (oks.length > 1 && agg.phone) console.log(`PHONE ${agg.phone.verdict}  (worst; ${agg.phone.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
   if (oks.length > 1 && agg.inventory) console.log(`INVENTORY ${agg.inventory.verdict}  (${agg.inventory.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
   if (agg.palette) console.log(`PALETTE ${agg.palette.verdict}  (worst; ${agg.palette.perTarget.map((t) => `${path.basename(t.target)}: ${t.verdict}`).join(', ')})`);
   if (o.json) writeFileSync(o.json, JSON.stringify({ mode: 'browser', width: o.width, dark: o.dark, targets: results, aggregate: agg, ...(oks[0].visibleChange ? { visibleChange: oks[0].visibleChange } : {}) }, null, 2));
   if (o.compare) {
-    try { printCompare(JSON.parse(readFileSync(o.compare, 'utf8')), agg.headline, oks.map((r) => r.target), agg.palette?.verdict, agg.layout, agg.inventory); }
+    try { printCompare(JSON.parse(readFileSync(o.compare, 'utf8')), agg.headline, oks.map((r) => r.target), agg.palette?.verdict, agg.layout, agg.inventory, agg.design, agg.phone); }
     catch (e) { console.error(`--compare: ${e.message}`); process.exit(2); }
   }
   if (o.visibleChange) printVisibleChange(oks[0]);

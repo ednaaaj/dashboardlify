@@ -20,7 +20,7 @@ Choosing: "tighten / tidy up / polish / tokens" -> B. "move / position / layout 
 
 ## Triage first
 
-Before editing an existing screen, measure it: `node <skill dir>/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout] [--combo calm|paper|brand] [--inventory] [--status] [--storage-state f.json] [--block pat]`. `--combo` picks the colour combo reported in the PALETTE block (calm: dense data, paper: warm or consumer, brand: brand-heavy). Use `--src <dir>` for a source-only estimate when nothing can be rendered; it also prints a ROLES block (roles, guards, routes). `--inventory` adds an INVENTORY block (`FIT` or `SWAP`): per component, whether it fits the data shape (rules in [metric-to-visual.md](references/metric-to-visual.md) "Component fit"). `--status` implies `--inventory` and adds fit rules for status columns, long lists, dates, people and KPI context, plus a `STATUS OK|FIX|NONE` block (rules in [status.md](references/status.md), [content.md](references/content.md); English-only, heuristic: confirm hits by hand). `--storage-state` loads a test login from a file kept outside the repo; `--block <pattern>` forces the error or empty state. Needs Node 22 and Chrome, no installs.
+Before editing an existing screen, measure it: `node <skill dir>/scripts/scan.mjs <url|file.html>... [--json f] [--compare before.json] [--dark] [--width n] [--shot f.png] [--visible-change before.png] [--height px] [--no-layout] [--combo calm|paper|brand] [--inventory] [--status] [--design] [--storage-state f.json] [--block pat]`. `--combo` picks the colour combo reported in the PALETTE block (calm: dense data, paper: warm or consumer, brand: brand-heavy). Use `--src <dir>` for a source-only estimate when nothing can be rendered; it also prints a ROLES block (roles, guards, routes). `--inventory` adds an INVENTORY block (`FIT` or `SWAP`): per component, whether it fits the data shape (rules in [metric-to-visual.md](references/metric-to-visual.md) "Component fit"). `--status` implies `--inventory` and adds fit rules for status columns, long lists, dates, people and KPI context, plus a `STATUS OK|FIX|NONE` block (rules in [status.md](references/status.md), [content.md](references/content.md); English-only, heuristic: confirm hits by hand). `--design` (opt-in, works alone or with `--status`) adds a `DESIGN OK|FIX|NONE` block: `accent-no-job`, `primary-button-styles`, `no-focal-point`, `too-many-hues`, `weak-grouping`, `contrast-overspent`, plus an advisory `squint` line, and a separate `PHONE OK|FIX|SKIP` line (`phone-size`, re-measured at 390px only when the viewport meta has width=device-width; not part of the DESIGN verdict); each finding is decided CHANGE, KEEP or ASK per [design-checks.md](references/design-checks.md) (heuristic: never change on scan output alone when a screenshot or the context contradicts it). `--storage-state` loads a test login from a file kept outside the repo; `--block <pattern>` forces the error or empty state. Needs Node 22 and Chrome, no installs.
 
 | Score | Verdict | Action |
 |---|---|---|
@@ -87,16 +87,17 @@ In soft, cards may use radius up to 16 and controls may be pill-shaped. Every ot
 13. [references/identity.md](references/identity.md) - typeface, sidebar and accent presets; user chooses. C
 14. [references/motion.md](references/motion.md) - allowed transitions. All modes
 15. [references/tokens.css](references/tokens.css) - copy these variables, do not retype values. All modes
-16. [references/anti-slop.md](references/anti-slop.md) - patterns to avoid + fix. All modes
-17. [references/copy.md](references/copy.md) - opt-in copy pass (`--copy`). B
-18. [references/redesign.md](references/redesign.md) - the full rework procedure. C
-19. [references/measure.md](references/measure.md) - measuring the existing UI by hand. C
-20. [references/metric-to-visual.md](references/metric-to-visual.md) - which visual fits which metric, plus the scan's component-fit rules. A, C
-21. [references/patterns.md](references/patterns.md) - proven dashboard patterns. A, C
-22. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn. Pick 1-2 closest to the product
-23. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
-24. [references/survey.md](references/survey.md) - pages x roles x states matrix, auth rules, per-cell evidence. C, improve
-25. [checklist.md](checklist.md) - verify before done. All modes
+16. [references/design-checks.md](references/design-checks.md) - the `--design` rules, thresholds and the CHANGE / KEEP / ASK decision. B, C
+17. [references/anti-slop.md](references/anti-slop.md) - patterns to avoid + fix. All modes
+18. [references/copy.md](references/copy.md) - opt-in copy pass (`--copy`). B
+19. [references/redesign.md](references/redesign.md) - the full rework procedure. C
+20. [references/measure.md](references/measure.md) - measuring the existing UI by hand. C
+21. [references/metric-to-visual.md](references/metric-to-visual.md) - which visual fits which metric, plus the scan's component-fit rules. A, C
+22. [references/patterns.md](references/patterns.md) - proven dashboard patterns. A, C
+23. [references/examples/](references/examples/) - linear, vercel, stripe, supabase, posthog, mercury, attio, shadcn. Pick 1-2 closest to the product
+24. [references/stack.md](references/stack.md) - which free libs to add (icons, charts, table, menus) and which to skip. A, C
+25. [references/survey.md](references/survey.md) - pages x roles x states matrix, auth rules, per-cell evidence. C, improve
+26. [checklist.md](checklist.md) - verify before done. All modes
 
 ## Hard rules
 

@@ -79,3 +79,32 @@ STATUS OK  (18 labels, 9 words, 2 styles, 4 colours)
 ```
 
 Both score 0 / LEAVE on the spacing metrics. The difference is status, structure and content, which a spacing pass cannot produce. Labels print empty (`""`) for tables and lists whose heading sits outside the card. The label count includes the Owner column (names that repeat), which is counted but not judged because it does not look like a state. Label detection is structural (repeated short text in a column, or pill-styled text) and works for any words; the fit rules that look for a state column and the date and person rules still use English word lists, and all of it is heuristic.
+
+Design checks (opt-in, general rules; see `../plugins/dashboardlify/skills/dashboardlify/references/design-checks.md`):
+
+```sh
+node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs clean-dashboard.html --design --no-palette --no-layout
+node ../plugins/dashboardlify/skills/dashboardlify/scripts/scan.mjs northwind-team-designed.html --design --no-palette --no-layout
+```
+
+`clean-dashboard.html` prints:
+
+```
+DESIGN OK  (accent azure in 2 roles, 1 button fill, 1 hue, type 1.85x (2 styles near largest), neutral ~100%, grouping 4x, loud 1)
+advisory: squint: heaviest region of the first screen at x 70% y 0% (25% x 24%, 14% of the contrast weight) holds div.card; covers a largest-size text "8,742" (likely headline or KPI) (heuristic thumbnail pass, never changes the verdict)
+
+PHONE FIX  (0 texts under 12px, 8 targets under 40px, scrolls sideways)
+- phone-size: at 390px wide: page scrolls sideways (802px wide at 390px; widest: main.main to 802px, div.top to 770px, div to 770px; a table overflows); 8 tap targets under 40px (smallest a 36px, a 36px, a 36px) -> CSS fix (Mode B) (design-checks.md)
+```
+
+`northwind-team-designed.html` prints:
+
+```
+DESIGN FIX  (accent orange in 1 role, 1 button fill, 4 hues, type 2.29x (1 style near largest), neutral ~99%, grouping 16x, loud 1)
+- too-many-hues: 4 hue families (max 3): orange 30-59deg 37%, green 120-149deg 33%, red 0-29deg 22%, azure 210-239deg 8% -> CSS fix (Mode B) (design-checks.md)
+advisory: squint: heaviest region of the first screen at x 0% y 32% (25% x 24%, 22% of the contrast weight) holds aside; does not cover any of the 4 largest-size texts on this screen (heuristic thumbnail pass, never changes the verdict)
+
+PHONE SKIP (page declares a desktop viewport or none)
+```
+
+`clean-dashboard.html` declares `width=device-width` but has no phone layout, so the `PHONE` check measures it and reports FIX. The other fixtures declare no phone viewport and print `PHONE SKIP`. `northwind-team-designed.html` shows `too-many-hues`: its orange, green, red and azure come from the accent, progress bars and dots, and the heuristic cannot always separate those from status colours. Confirm each hit by hand.
